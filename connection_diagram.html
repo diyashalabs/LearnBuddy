@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1350">
+<title>LearnBuddy – ESP32 Connection Diagram</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #10121a; color: #eee; font-family: 'Courier New', monospace; padding: 16px; }
+  h1   { text-align: center; color: #00d4aa; font-size: 20px; margin-bottom: 4px; }
+  h2   { text-align: center; color: #7a90b0; font-size: 13px; font-weight: normal; margin-bottom: 12px; }
+  canvas { display: block; margin: 0 auto; border-radius: 8px; border: 1px solid #2a3a5a; }
+  .legend { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; margin: 12px 0; font-size: 12px; }
+  .li { display: flex; align-items: center; gap: 6px; }
+  .ls { width: 28px; height: 4px; border-radius: 2px; }
+  footer { text-align: center; color: #444; font-size: 11px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<h1>LearnBuddy – ESP32 Hardware Connection Diagram</h1>
+<h2>ESP32-WROOM-32 (38-pin DevKit) · 4×4 Matrix Keypad · WS2812B LED Ring (16 LEDs)</h2>
+
+<div class="legend">
+  <div class="li"><div class="ls" style="background:#e74c3c"></div>ROW outputs (GPIO driven HIGH)</div>
+  <div class="li"><div class="ls" style="background:#3498db"></div>COL inputs (pull-down)</div>
+  <div class="li"><div class="ls" style="background:#2ecc71"></div>WS2812B Data – RMT</div>
+  <div class="li"><div class="ls" style="background:#f39c12"></div>5V / 3.3V Power</div>
+  <div class="li"><div class="ls" style="background:#95a5a6"></div>GND</div>
+  <div class="li"><div class="ls" style="background:#9b59b6"></div>Capacitive Touch pins</div>
+  <div class="li"><div class="ls" style="background:#c0392b; border: 1px dashed #c0392b"></div>Flash-internal (avoid)</div>
+</div>
+
+<canvas id="c" width="1340" height="920"></canvas>
+
+<footer>LearnBuddy MVP · ESP-IDF · FreeRTOS · Generated 2026</footer>
+
+<script>
+const cv = document.getElementById('c');
+const cx = cv.getContext('2d');
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+const C = {
+  bg      : '#10121a',
+  mod     : '#0d1f38',
+  modBd   : '#2980b9',
+  row     : '#e74c3c',
+  col     : '#3498db',
+  led     : '#2ecc71',
+  pwr     : '#f39c12',
+  gnd     : '#95a5a6',
+  touch   : '#9b59b6',
+  touchBt : '#7d3c98',
+  flash   : '#922b21',
+  inputO  : '#566573',
+  unused  : '#4a5568',
+  white   : '#dce6f0',
+};
+
+// ── Geometry ─────────────────────────────────────────────────────────────────
+// ESP32 module
+const MX = 500, MY = 36, MW = 196, MH = 830;
+const PINS = 19;
+const PS   = MH / (PINS - 1);            // pin spacing
+const PY   = i => MY + i * PS;           // pin y for index i
+const LSX  = MX - 18;                    // left stub endpoint x
+const RSX  = MX + MW + 18;              // right stub endpoint x
+const LLX  = LSX - 6;                    // left label x  (right-aligned text)
+const RLX  = RSX + 6;                    // right label x (left-aligned text)
+
+// Keypad
+const KX = 840, KY = 172, KCW = 73, KCH = 62;
+const KW  = KCW * 4, KH = KCH * 4;
+const KBY = KY + KH;                     // keypad bottom y
+const rowCY = r => KY + r * KCH + KCH / 2;
+const colCX = c => KX + c * KCW + KCW / 2;
+
+// LED ring
+const RCX = 215, RCY = 400, RR = 108;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function poly(pts, color, lw, dash = []) {
+  cx.save();
+  cx.strokeStyle = color; cx.lineWidth = lw;
+  cx.lineCap = 'round'; cx.lineJoin = 'round';
+  cx.setLineDash(dash);
+  cx.beginPath();
+  cx.moveTo(pts[0][0], pts[0][1]);
+  pts.slice(1).forEach(p => cx.lineTo(p[0], p[1]));
+  cx.stroke();
+  cx.restore();
+}
+function dot(x, y, r, fill) {
+  cx.fillStyle = fill;
+  cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fill();
+}
+function rrect(x, y, w, h, fill, stroke, lw = 1.5, rad = 5) {
+  cx.fillStyle = fill; cx.strokeStyle = stroke; cx.lineWidth = lw;
+  cx.beginPath(); cx.roundRect(x, y, w, h, rad); cx.fill(); cx.stroke();
+}
+function txt(s, x, y, color, sz = 10, align = 'left', bold = false) {
+  cx.fillStyle = color;
+  cx.font = `${bold ? 'bold ' : ''}${sz}px "Courier New", monospace`;
+  cx.textAlign = align; cx.textBaseline = 'middle';
+  cx.fillText(s, x, y);
+}
+function arrow(x, y, dx, dy, color) {
+  const len = 7;
+  cx.fillStyle = color;
+  cx.beginPath();
+  cx.moveTo(x, y);
+  cx.lineTo(x - dx * len - dy * 4, y - dy * len + dx * 4);
+  cx.lineTo(x - dx * len + dy * 4, y - dy * len - dx * 4);
+  cx.fill();
+}
+
+// ── Pin definitions ───────────────────────────────────────────────────────────
+// Each entry: { lbl, type }
+// type keys → color
+function pc(t) {
+  return { row: C.row, col: C.col, led: C.led, pwr: C.pwr, gnd: C.gnd,
+           touch: C.touch, touchbt: C.touchBt, flash: C.flash,
+           inonly: C.inputO, unused: C.unused }[t] || C.unused;
+}
+
+// LEFT rail – L0 … L18 (top → bottom, USB at bottom)
+const LP = [
+  { lbl: 'GND',              type: 'gnd'     },  // 0
+  { lbl: 'IO23',             type: 'unused'  },  // 1
+  { lbl: 'IO22',             type: 'unused'  },  // 2
+  { lbl: 'IO1 / TXD0',      type: 'unused'  },  // 3
+  { lbl: 'IO3 / RXD0',      type: 'unused'  },  // 4
+  { lbl: 'IO21',             type: 'unused'  },  // 5
+  { lbl: 'GND',              type: 'gnd'     },  // 6
+  { lbl: 'IO19',             type: 'unused'  },  // 7
+  { lbl: 'IO18  ←  LED DATA', type: 'led'   },  // 8  ← WS2812B
+  { lbl: 'IO5',              type: 'unused'  },  // 9
+  { lbl: 'IO17',             type: 'unused'  },  // 10
+  { lbl: 'IO16',             type: 'unused'  },  // 11
+  { lbl: 'IO4   [T0] ★FREE', type: 'touch'  },  // 12  Touch0
+  { lbl: 'IO0   [T1] ⚠BOOT', type: 'touchbt'},  // 13  Touch1 boot
+  { lbl: 'IO2   [T2] ⚠BOOT', type: 'touchbt'},  // 14  Touch2 boot
+  { lbl: 'IO15  [T3] ★FREE', type: 'touch'  },  // 15  Touch3
+  { lbl: 'SD1 / IO8  ⚠FLASH', type: 'flash'},   // 16
+  { lbl: 'SD0 / IO7  ⚠FLASH', type: 'flash'},   // 17
+  { lbl: 'CLK / IO6  ⚠FLASH', type: 'flash'},   // 18
+];
+
+// RIGHT rail – R0 … R18 (top → bottom)
+const RP = [
+  { lbl: '3V3',                    type: 'pwr'    },  // 0
+  { lbl: 'EN / RESET',             type: 'unused' },  // 1
+  { lbl: 'IO36 / VP  (input-only)', type: 'inonly'},  // 2
+  { lbl: 'IO39 / VN  (input-only)', type: 'inonly'},  // 3
+  { lbl: 'IO34        (input-only)', type: 'inonly'},  // 4
+  { lbl: 'IO35        (input-only)', type: 'inonly'},  // 5
+  { lbl: 'IO32  ROW3  [T9]  ►',    type: 'row'   },  // 6
+  { lbl: 'IO33  ROW2  [T8]  ►',    type: 'row'   },  // 7
+  { lbl: 'IO25  ROW1        ►',    type: 'row'   },  // 8
+  { lbl: 'IO26  ROW0        ►',    type: 'row'   },  // 9
+  { lbl: 'IO27  COL0  [T7]  ►',    type: 'col'   },  // 10
+  { lbl: 'IO14  COL1  [T6]  ►',    type: 'col'   },  // 11
+  { lbl: 'IO12  COL2  [T5]  ►',    type: 'col'   },  // 12
+  { lbl: 'IO13  COL3  [T4]  ►',    type: 'col'   },  // 13
+  { lbl: 'SD3 / IO10  ⚠FLASH',     type: 'flash' },  // 14
+  { lbl: 'SD2 / IO9   ⚠FLASH',     type: 'flash' },  // 15
+  { lbl: 'CMD / IO11  ⚠FLASH',     type: 'flash' },  // 16
+  { lbl: '5V / VIN',               type: 'pwr'   },  // 17
+  { lbl: 'GND',                    type: 'gnd'   },  // 18
+];
+
+// ── Draw connection wires (behind everything) ─────────────────────────────────
+function drawWires() {
+  // ── LED DATA wire: L8 (IO18) → WS2812B ring ──────────────────────────
+  const ledY = PY(8);
+  poly([[LSX, ledY],[355, ledY],[355, RCY],[RCX + RR + 6, RCY]], C.led, 3);
+  arrow(RCX + RR + 4, RCY, 1, 0, C.led);
+  txt('WS2812B DIN', 360, ledY - 9, C.led, 8.5, 'left');
+  txt('300Ω series resistor recommended', 360, ledY + 9, '#4a7a4a', 8, 'left');
+
+  // ── ROW wires: right rail → keypad left edge ──────────────────────────
+  // R6=ROW3, R7=ROW2, R8=ROW1, R9=ROW0
+  // Route: right stub → intermediate x → vertical → keypad left
+  const rowRail = [6, 7, 8, 9];  // R indices for ROW3..ROW0 then reverse → ROW0..ROW3
+  const kpRow   = [3, 2, 1, 0];  // corresponding keypad rows
+  const rowX    = [738, 745, 752, 759]; // staggered intermediate x
+
+  rowRail.forEach((ri, idx) => {
+    const py  = PY(ri);
+    const ky  = rowCY(kpRow[idx]);
+    const rx  = rowX[idx];
+    poly([[RSX, py],[rx, py],[rx, ky],[KX, ky]], C.row, 2.5);
+    dot(KX, ky, 4, C.row);
+  });
+
+  // ── COL wires: right rail → keypad bottom edge ────────────────────────
+  // R10=COL0, R11=COL1, R12=COL2, R13=COL3
+  // Route: right stub → col center x → up to keypad bottom
+  const colRail = [10, 11, 12, 13];
+  const kpCols  = [0, 1, 2, 3];
+  const offY    = [52, 46, 40, 34]; // below-keypad bus y offsets (to separate wires)
+
+  colRail.forEach((ri, idx) => {
+    const py  = PY(ri);
+    const ccx = colCX(kpCols[idx]);
+    const busY = KBY + offY[idx];
+    // right stub → right → down(bus) → in to col x → up to keypad bottom
+    poly([[RSX, py],[ccx, py],[ccx, busY],[ccx, KBY]], C.col, 2.5);
+    dot(ccx, KBY, 4, C.col);
+  });
+
+  // ── Power & GND to LED ring (dashed annotations) ─────────────────────
+  poly([[RCX, RCY - RR - 4],[RCX, RCY - RR - 22]], C.pwr, 2, [5, 3]);
+  txt('5V →', RCX + 5, RCY - RR - 13, C.pwr, 8.5, 'left');
+
+  poly([[RCX, RCY + RR + 4],[RCX, RCY + RR + 22]], C.gnd, 2, [5, 3]);
+  txt('GND →', RCX + 5, RCY + RR + 13, C.gnd, 8.5, 'left');
+
+  // ── Power/GND to keypad (dashed annotations) ──────────────────────────
+  txt('VCC: 3.3V or 5V', KX + KW + 10, KY + 18, C.pwr, 8.5, 'left');
+  txt('GND: common rail', KX + KW + 10, KY + 32, C.gnd, 8.5, 'left');
+}
+
+// ── ESP32 module ───────────────────────────────────────────────────────────────
+function drawESP32() {
+  // Body
+  rrect(MX, MY, MW, MH, C.mod, C.modBd, 2, 8);
+
+  // Antenna bump
+  rrect(MX + 48, MY - 28, 100, 28, '#0a1828', C.modBd, 1.5, 3);
+  txt('╔══════╗', MX + MW / 2, MY - 20, C.modBd, 8, 'center');
+  txt('ANTENNA', MX + MW / 2, MY - 9, '#3d85c8', 8, 'center');
+
+  // Module label
+  txt('ESP32-WROOM-32', MX + MW / 2, MY + 22, '#00d4aa', 13, 'center', true);
+  txt('38-PIN DEVKIT', MX + MW / 2, MY + 38, '#3d85c8', 10, 'center');
+  txt('240 MHz · 520 KB SRAM', MX + MW / 2, MY + 54, '#4a5568', 8.5, 'center');
+
+  // USB connector stub (bottom center)
+  rrect(MX + 62, MY + MH - 1, 72, 16, '#1a2030', C.gnd, 1, 2);
+  txt('USB', MX + MW / 2, MY + MH + 7, '#4a5568', 8, 'center');
+
+  // Left pins
+  LP.forEach((p, i) => {
+    const py = PY(i);
+    const col = pc(p.type);
+    const lw = (p.type === 'unused' || p.type === 'flash' || p.type === 'inonly') ? 1 : 2;
+    poly([[MX, py], [LSX, py]], col, lw);
+    dot(LSX, py, 2.5, col);
+    txt(p.lbl, LLX, py, col, 9, 'right');
+  });
+
+  // Right pins
+  RP.forEach((p, i) => {
+    const py = PY(i);
+    const col = pc(p.type);
+    const lw = (p.type === 'unused' || p.type === 'flash' || p.type === 'inonly') ? 1 : 2;
+    poly([[MX + MW, py], [RSX, py]], col, lw);
+    dot(RSX, py, 2.5, col);
+    txt(p.lbl, RLX, py, col, 9, 'left');
+  });
+}
+
+// ── 4×4 Keypad ────────────────────────────────────────────────────────────────
+function drawKeypad() {
+  const keyLabels = [
+    ['1','2','3','R'],
+    ['4','5','6','Y'],
+    ['7','8','9','O'],
+    ['SPC','0','.','G'],
+  ];
+  const colorKey = { R: ['#5a1a1a', '#e74c3c'], Y: ['#5a4a10', '#f1c40f'],
+                      O: ['#5a3010', '#e67e22'], G: ['#0f4a1a', '#2ecc71'] };
+
+  // Title
+  txt('4×4 MATRIX KEYPAD', KX + KW / 2, KY - 22, C.white, 13, 'center', true);
+  txt('(OUTPUT: pull-drive rows · INPUT: pull-down cols)', KX + KW / 2, KY - 9, '#7a90b0', 8.5, 'center');
+
+  // Outer shell
+  rrect(KX - 12, KY - 12, KW + 24, KH + 24, '#0d1f10', '#2980b9', 2, 8);
+
+  // Cells
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 4; c++) {
+      const x = KX + c * KCW, y = KY + r * KCH;
+      const lbl = keyLabels[r][c];
+      const isColor = ['R','Y','O','G'].includes(lbl);
+      const [bg, fg] = isColor ? colorKey[lbl] : ['#1a2a3a', '#dce6f0'];
+      rrect(x + 3, y + 3, KCW - 6, KCH - 6, bg, '#2980b9', 1, 4);
+      txt(lbl, x + KCW / 2, y + KCH / 2, fg, isColor ? 13 : 14, 'center', true);
+    }
+  }
+
+  // Row labels (left of keypad)
+  const rowGpios = [26, 25, 33, 32];
+  const rowTouches = ['-', '-', 'T8', 'T9'];
+  for (let r = 0; r < 4; r++) {
+    const cy = rowCY(r);
+    txt(`ROW${r}`, KX - 58, cy - 7, C.row, 9, 'right', true);
+    txt(`GPIO${rowGpios[r]} ${rowTouches[r] !== '-' ? '[' + rowTouches[r] + ']' : ''}`, KX - 58, cy + 7, '#e8a090', 8.5, 'right');
+  }
+
+  // Col labels (below keypad)
+  const colGpios   = [27, 14, 12, 13];
+  const colTouches = ['T7', 'T6', 'T5', 'T4'];
+  for (let c = 0; c < 4; c++) {
+    const ccx = colCX(c);
+    txt(`COL${c}`, ccx, KBY + 16, C.col, 9, 'center', true);
+    txt(`GPIO${colGpios[c]}`, ccx, KBY + 28, '#90b8e8', 8.5, 'center');
+    txt(`[${colTouches[c]}]`, ccx, KBY + 40, C.touch, 8, 'center');
+  }
+}
+
+// ── WS2812B LED Ring ──────────────────────────────────────────────────────────
+function drawLEDRing() {
+  // Title
+  txt('WS2812B LED RING', RCX, RCY - RR - 44, '#2ecc71', 13, 'center', true);
+  txt('16 NeoPixels · RMT @ 10 MHz', RCX, RCY - RR - 30, '#4a7a4a', 8.5, 'center');
+
+  // PCB ring
+  cx.save();
+  cx.strokeStyle = '#1a3a28'; cx.lineWidth = 26;
+  cx.beginPath(); cx.arc(RCX, RCY, RR, 0, Math.PI*2); cx.stroke();
+  cx.strokeStyle = '#0d2a1e'; cx.lineWidth = 20;
+  cx.beginPath(); cx.arc(RCX, RCY, RR, 0, Math.PI*2); cx.stroke();
+  cx.strokeStyle = '#1e5a3a'; cx.lineWidth = 2;
+  cx.beginPath(); cx.arc(RCX, RCY, RR, 0, Math.PI*2); cx.stroke();
+  cx.restore();
+
+  // Center labels
+  txt('DATA', RCX, RCY - 12, C.led, 9.5, 'center', true);
+  txt('GPIO18', RCX, RCY, C.led, 9, 'center');
+  txt('(RMT)', RCX, RCY + 13, '#4a7a4a', 8.5, 'center');
+
+  // Individual LEDs
+  const hues = [0,22,45,60,80,100,120,160,180,200,220,250,270,290,310,340];
+  for (let i = 0; i < 16; i++) {
+    const ang = (i / 16) * Math.PI * 2 - Math.PI / 2;
+    const lx = RCX + Math.cos(ang) * RR;
+    const ly = RCY + Math.sin(ang) * RR;
+    const h = hues[i];
+    cx.fillStyle   = `hsla(${h},100%,55%,0.6)`;
+    cx.strokeStyle = `hsl(${h},100%,65%)`;
+    cx.lineWidth   = 1.5;
+    cx.beginPath(); cx.arc(lx, ly, 8, 0, Math.PI*2); cx.fill(); cx.stroke();
+    // LED index
+    const lblR = RR + 22;
+    txt(String(i), RCX + Math.cos(ang) * lblR, RCY + Math.sin(ang) * lblR, '#888', 7.5, 'center');
+  }
+
+  // DIN annotation
+  txt('DIN ←', RCX + RR + 14, RCY, C.led, 8.5, 'left');
+}
+
+// ── Touch pin callout ─────────────────────────────────────────────────────────
+function drawTouchCallout() {
+  const bx = 28, by = 616, bw = 245, bh = 132;
+  rrect(bx, by, bw, bh, '#14082a', C.touch, 1.5, 6);
+  txt('★  CAPACITIVE TOUCH PINS  ★', bx + bw/2, by + 14, C.touch, 9.5, 'center', true);
+
+  const rows = [
+    ['IO4  (Touch0)', 'SAFE – fully free',      C.touch   ],
+    ['IO15 (Touch3)', 'SAFE – fully free',      C.touch   ],
+    ['IO0  (Touch1)', '⚠ Boot-strap pin',       C.touchBt ],
+    ['IO2  (Touch2)', '⚠ Boot-strap pin',       C.touchBt ],
+  ];
+  rows.forEach(([pin, note, col], i) => {
+    txt('★ ' + pin, bx + 10, by + 34 + i * 18, col, 9, 'left', true);
+    txt(note, bx + 130, by + 34 + i * 18, '#aaa', 8.5, 'left');
+  });
+
+  txt('Already used by keypad: T4 T5 T6 T7 T8 T9', bx + 10, by + 108, '#4a4a4a', 8, 'left');
+  txt('(GPIO13, 12, 14, 27, 33, 32)', bx + 10, by + 120, '#3a3a3a', 8, 'left');
+}
+
+// ── Notes box ─────────────────────────────────────────────────────────────────
+function drawNotes() {
+  const bx = 840, by = 590, bw = 490, bh = 180;
+  rrect(bx, by, bw, bh, '#0a1a0a', '#2e7d32', 1.5, 6);
+  txt('FIRMWARE NOTES', bx + 10, by + 14, '#2ecc71', 9.5, 'left', true);
+  const lines = [
+    '• Rows driven HIGH one at a time; columns read with pull-down',
+    '• Scan task: 50 ms interval, 5 ms row-settle, stack 4 KB @ prio 5',
+    '• LED ring: espressif__led_strip via RMT; brightness scaled 0-255',
+    '• Game 1: count-the-lit-LEDs (random / spaced); 0-9 answer keys',
+    '• Game 2: identify colour (R/Y/O/G keys; win → rainbow animation)',
+    '• Colour keys (R Y O G) change ring colour in IDLE state',
+    '• "0" cycles brightness: 40 → 100 → 180 → 255 in IDLE/SELECTING',
+    '• SPC=select game (1 or 2); "." confirms selection',
+    '• WiFi SoftAP: SSID "LeanBuddy"  PW "12345678"  CH 1  max 4 STA',
+    '• WebSocket at ws://192.168.4.1/ws  messages: KEY_1 … KEY_G',
+  ];
+  lines.forEach((l, i) => txt(l, bx + 10, by + 32 + i * 14.5, '#a0c8a0', 8.5, 'left'));
+}
+
+// ── Hardware notes ────────────────────────────────────────────────────────────
+function drawHWNotes() {
+  const bx = 28, by = 760, bw = 455, bh = 90;
+  rrect(bx, by, bw, bh, '#0a1a20', '#2980b9', 1.5, 6);
+  txt('HARDWARE NOTES', bx + 10, by + 13, '#3498db', 9.5, 'left', true);
+  const lines = [
+    '• Add 300–500 Ω series resistor on WS2812B DIN line',
+    '• Decouple cap: 100 µF electrolytic across LED 5V/GND pads',
+    '• 4×4 keypad: passive matrix, no pull-up/pull-down on keypad side',
+    '• Internal ESP32 pull-downs used for COL lines (GPIO_PULLDOWN_ONLY)',
+    '• ESP32 3.3 V logic; LED ring operates from 5 V (level OK for WS2812B)',
+  ];
+  lines.forEach((l, i) => txt(l, bx + 10, by + 30 + i * 13, '#a0c0d8', 8.5, 'left'));
+}
+
+// ── Main render ───────────────────────────────────────────────────────────────
+function render() {
+  cx.clearRect(0, 0, cv.width, cv.height);
+  cx.fillStyle = C.bg;
+  cx.fillRect(0, 0, cv.width, cv.height);
+
+  // Subtle grid
+  cx.strokeStyle = '#1a1e2e'; cx.lineWidth = 0.5;
+  for (let x = 0; x < cv.width; x += 40) { cx.beginPath(); cx.moveTo(x,0); cx.lineTo(x,cv.height); cx.stroke(); }
+  for (let y = 0; y < cv.height; y += 40) { cx.beginPath(); cx.moveTo(0,y); cx.lineTo(cv.width,y); cx.stroke(); }
+
+  drawWires();       // wires first – behind everything
+  drawLEDRing();
+  drawESP32();
+  drawKeypad();
+  drawTouchCallout();
+  drawNotes();
+  drawHWNotes();
+}
+
+render();
+</script>
+</body>
+</html>
