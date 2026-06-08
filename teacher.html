@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LearnBuddy — Teacher Control</title>
+<style>
+:root {
+  --bg:#0f1117; --surface:#1c1f2e; --card:#252836; --border:#363a4f;
+  --accent:#7c6af4; --accent2:#5bc8af; --danger:#e05f5f; --warn:#e0a85f;
+  --text:#e4e6f1; --muted:#8889a0; --success:#5be05f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:16px}
+@media(min-width:640px){body{max-width:680px;margin:0 auto;padding:20px}}
+
+/* header */
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 0 18px;border-bottom:1px solid var(--border);margin-bottom:18px}
+.logo{font-size:1.3rem;font-weight:700;color:var(--accent);letter-spacing:.5px}
+.logo span{color:var(--accent2)}
+#statusDot{width:10px;height:10px;border-radius:50%;background:var(--muted);display:inline-block;margin-right:6px;transition:background .3s}
+#statusDot.connected{background:var(--success);box-shadow:0 0 6px var(--success)}
+#statusDot.connecting{background:var(--warn);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+#statusText{font-size:.85rem;color:var(--muted)}
+
+/* buttons */
+button{border:none;border-radius:8px;padding:10px 20px;font-size:.9rem;font-weight:600;cursor:pointer;transition:opacity .2s,transform .1s}
+button:active{transform:scale(.97)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-success{background:var(--accent2);color:#0f1117}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-sm{padding:6px 14px;font-size:.8rem}
+
+/* sections */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px}
+.section h2{font-size:.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:14px}
+
+/* tabs */
+.tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:10px}
+.tab{padding:6px 14px;border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;color:var(--muted);background:transparent;border:1px solid transparent}
+.tab.active{color:#fff;background:var(--accent);border-color:var(--accent)}
+
+/* game cards */
+.game-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.game-card{background:var(--card);border:2px solid var(--border);border-radius:10px;padding:14px 12px;cursor:pointer;transition:border-color .2s,transform .1s;user-select:none}
+.game-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.game-card.selected{border-color:var(--accent);background:#2a2b45}
+.game-card .gname{font-weight:700;font-size:.9rem;margin-bottom:3px}
+.game-card .gdesc{font-size:.72rem;color:var(--muted);line-height:1.4}
+.game-card .badge{display:inline-block;margin-top:8px;font-size:.62rem;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--border);color:var(--muted)}
+.game-card.selected .badge{background:var(--accent);color:#fff}
+
+/* form rows */
+.row{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.row label{min-width:110px;font-size:.83rem;color:var(--muted)}
+.row select,.row input[type=number]{flex:1;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 10px;font-size:.88rem}
+.row select:focus,.row input:focus{outline:none;border-color:var(--accent)}
+
+/* checkboxes (number grid + color toggles) */
+.chip-grid{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+.chip{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:8px;border:2px solid var(--border);font-weight:700;font-size:.9rem;cursor:pointer;user-select:none;transition:all .15s}
+.chip.on{border-color:var(--accent);background:var(--accent);color:#fff}
+.chip.color-R{border-color:#e05f5f} .chip.color-R.on{background:#e05f5f;color:#fff}
+.chip.color-Y{border-color:#e0e05f} .chip.color-Y.on{background:#e0e05f;color:#111}
+.chip.color-O{border-color:#e0a85f} .chip.color-O.on{background:#e0a85f;color:#111}
+.chip.color-G{border-color:#5be05f} .chip.color-G.on{background:#5be05f;color:#111}
+.row-label{font-size:.78rem;color:var(--muted);margin-bottom:5px}
+
+/* prompt box */
+#promptBox{background:var(--card);border:2px solid var(--accent);border-radius:10px;padding:16px;text-align:center;margin-bottom:14px;display:none}
+#promptBox .prompt-game{font-size:.72rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.8px}
+#promptText{font-size:1.15rem;font-weight:700;color:var(--accent2);line-height:1.5;margin-bottom:10px}
+#promptActions{display:flex;justify-content:center;gap:8px;margin-bottom:10px}
+#ringCounts{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+.ring-pill{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:.8rem;font-weight:700;opacity:.35;transition:opacity .2s,background .2s}
+.ring-pill.active{opacity:1}
+.ring-pill .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+/* TTS settings */
+#ttsSettings{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:14px}
+#ttsSettings label{font-size:.8rem;color:var(--muted)}
+#ttsSettings select,#ttsSettings input[type=range]{background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:.8rem}
+.tts-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;font-weight:600}
+input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--accent)}
+
+/* session bar */
+.session-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.session-info{flex:1;min-width:160px;background:var(--card);border-radius:8px;padding:10px 14px;border:1px solid var(--border)}
+.si-label{color:var(--muted);font-size:.73rem;margin-bottom:2px}
+.si-val{font-size:1rem;font-weight:700;color:var(--accent2)}
+
+/* scores */
+.score-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.score-card{background:var(--card);border-radius:10px;padding:14px;text-align:center;border:1px solid var(--border)}
+.sc-num{font-size:1.9rem;font-weight:800}
+.sc-label{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-top:2px}
+.score-card.correct .sc-num{color:var(--success)}
+.score-card.wrong   .sc-num{color:var(--danger)}
+.score-card.total   .sc-num{color:var(--accent)}
+.acc-bar-wrap{margin-top:12px;background:var(--card);border-radius:8px;padding:10px 14px;border:1px solid var(--border)}
+.acc-bar-lbl{display:flex;justify-content:space-between;font-size:.73rem;color:var(--muted);margin-bottom:6px}
+.acc-bar{height:8px;border-radius:4px;background:var(--border);overflow:hidden}
+.acc-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--danger),var(--warn) 50%,var(--success));width:0%;transition:width .5s}
+
+/* analytics heatmap */
+.heatmap{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-top:8px}
+.hm-cell{border-radius:6px;padding:6px 2px;text-align:center;font-size:.7rem;font-weight:700;transition:background .3s}
+.hm-label{font-size:.65rem;color:var(--muted);margin-bottom:1px}
+.color-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.cb-cell{border-radius:8px;padding:8px 4px;text-align:center;font-size:.72rem;font-weight:700}
+
+/* log */
+#logBox{background:#0a0c14;border:1px solid var(--border);border-radius:8px;padding:10px 12px;height:110px;overflow-y:auto;font-family:monospace;font-size:.73rem;color:var(--muted)}
+#logBox p{margin:0;line-height:1.6}
+#logBox .info{color:#6abeff} #logBox .ok{color:var(--success)}
+#logBox .err{color:var(--danger)} #logBox .warn{color:var(--warn)}
+
+/* connect area */
+#connectArea{text-align:center;padding:32px 0}
+#connectArea p{color:var(--muted);font-size:.9rem;margin-bottom:18px}
+
+/* settings actions */
+.settings-actions{display:flex;gap:8px;margin-top:12px}
+/* player name */
+.player-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.player-row input[type=text]{flex:1;background:var(--card);border:1px solid var(--accent);border-radius:8px;color:var(--text);padding:9px 14px;font-size:1rem;font-weight:600}
+.player-row input[type=text]:focus{outline:none;box-shadow:0 0 0 2px var(--accent)}
+.player-row input::placeholder{color:var(--muted);font-weight:400}
+/* player analytics */
+.player-select-row{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.player-select-row select{background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 10px;font-size:.85rem;flex:1}
+.player-stat-header{font-size:.75rem;color:var(--muted);margin-bottom:6px}
+
+/* progress tab */
+.rt-heatmap{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-top:8px}
+.rt-cell{border-radius:6px;padding:6px 2px;text-align:center;font-size:.7rem;font-weight:700;color:#ffffffdd}
+.prog-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.prog-controls select{background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 10px;font-size:.85rem;flex:1}
+.prog-period{display:flex;gap:6px;margin-bottom:12px}
+.period-btn{padding:5px 14px;border-radius:6px;font-size:.78rem;font-weight:600;cursor:pointer;background:var(--card);border:1px solid var(--border);color:var(--muted);transition:all .15s}
+.period-btn.act{background:var(--accent);border-color:var(--accent);color:#fff}
+.trend-canvas{display:block;border-radius:8px;background:var(--card);margin-bottom:12px}
+.weak-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;background:var(--card);margin-bottom:5px;font-size:.82rem}
+.wi-badge{font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Learn<span>Buddy</span></div>
+  <div><span id="statusDot"></span><span id="statusText">Disconnected</span></div>
+</header>
+
+<!-- Connect -->
+<div id="connectArea">
+  <p>Open in Chrome or Edge. Bluetooth must be ON.</p>
+  <button class="btn-primary" style="font-size:1rem;padding:13px 36px" id="connectBtn">Connect via Bluetooth</button>
+</div>
+
+<!-- Main UI -->
+<div id="mainUI" style="display:none">
+
+  <!-- TTS settings -->
+  <div id="ttsSettings" style="display:none">
+    <label class="tts-toggle">
+      <input type="checkbox" id="ttsOn" checked> Voice prompt
+    </label>
+    <label>Speed
+      <select id="ttsRate">
+        <option value="0.6">Slow</option>
+        <option value="0.85" selected>Normal</option>
+        <option value="1.1">Fast</option>
+      </select>
+    </label>
+    <label>Pitch
+      <select id="ttsPitch">
+        <option value="1.2">High</option>
+        <option value="1.0" selected>Normal</option>
+        <option value="0.8">Low</option>
+      </select>
+    </label>
+    <label>Voice
+      <select id="ttsVoice" style="max-width:130px"></select>
+    </label>
+  </div>
+
+  <!-- Prompt banner (shows during active session) -->
+  <div id="promptBox">
+    <div class="prompt-game" id="promptGame">Game 1</div>
+    <div id="promptText">—</div>
+    <div id="promptActions">
+      <button class="btn-outline btn-sm" id="repeatBtn" title="Speak again">&#128264; Repeat</button>
+    </div>
+    <!-- Ring colour counts — shows how many LEDs of each colour are lit -->
+    <div id="ringCounts">
+      <span class="ring-pill" id="pillR"><span class="dot" style="background:#e05f5f"></span>RED <span id="cntR">0</span></span>
+      <span class="ring-pill" id="pillY"><span class="dot" style="background:#e0e05f"></span>YLW <span id="cntY">0</span></span>
+      <span class="ring-pill" id="pillO"><span class="dot" style="background:#e0a85f"></span>ORG <span id="cntO">0</span></span>
+      <span class="ring-pill" id="pillG"><span class="dot" style="background:#5be05f"></span>GRN <span id="cntG">0</span></span>
+    </div>
+  </div>
+
+  <!-- Game selection -->
+  <div class="section">
+    <h2>Select Game</h2>
+    <div class="game-grid" id="gameGrid"><div style="color:var(--muted);font-size:.85rem">Loading…</div></div>
+  </div>
+
+  <!-- Settings (tabs per game) -->
+  <div class="section">
+    <h2>Game Settings</h2>
+    <div id="settingsG1">
+
+      <div class="row-label">Rounds</div>
+      <div class="row" style="margin-bottom:14px">
+        <input type="number" id="g1Rounds" min="1" max="50" value="10" style="max-width:90px">
+      </div>
+
+      <div class="row-label">Numbers in pool <span style="color:var(--muted);font-size:.7rem">(tap to toggle)</span></div>
+      <div class="chip-grid" id="numChips"></div>
+
+      <div class="row-label">Prompt mode</div>
+      <div class="row" style="margin-bottom:14px">
+        <select id="g1Prompt">
+          <option value="0">Off — child counts freely</option>
+          <option value="1">Count All — "Count all lights"</option>
+          <option value="2">By Colour — "Count only RED lights"</option>
+          <option value="3">Combo — "Count RED and GREEN lights"</option>
+          <option value="4">Random — mix of above</option>
+        </select>
+      </div>
+
+      <div class="row-label">Ring colour mode</div>
+      <div class="row" style="margin-bottom:14px">
+        <select id="g1Ring">
+          <option value="0">Fixed colour (choose below)</option>
+          <option value="1" selected>Random single colour each round</option>
+          <option value="2">Multi-colour (needed for colour prompts)</option>
+        </select>
+      </div>
+
+      <div id="g1FixedColorRow" class="row" style="margin-bottom:14px;display:none">
+        <label>Fixed colour</label>
+        <select id="g1FixedCol">
+          <option value="0">Red</option><option value="1">Yellow</option>
+          <option value="2">Orange</option><option value="3">Green</option>
+        </select>
+      </div>
+
+      <div class="row-label">Active colours on ring</div>
+      <div class="chip-grid" id="g1AcolChips"></div>
+
+      <div class="row-label">Colours to ask about in prompts</div>
+      <div class="chip-grid" id="g1PcolChips"></div>
+
+      <div class="row-label">Allow combo prompts</div>
+      <div class="row" style="margin-bottom:14px">
+        <select id="g1Combo">
+          <option value="0">Single colour only</option>
+          <option value="1">Include two-colour combos</option>
+          <option value="2">Include all combinations</option>
+        </select>
+      </div>
+
+      <div class="row-label">LED arrangement</div>
+      <div class="row" style="margin-bottom:14px">
+        <select id="g1Arrange">
+          <option value="0">Grouped (arc)</option>
+          <option value="1">Scattered (random positions)</option>
+          <option value="2" selected>Random each round</option>
+        </select>
+      </div>
+
+    </div>
+
+    <div id="settingsG2" style="display:none">
+
+      <div class="row-label">Rounds</div>
+      <div class="row" style="margin-bottom:14px">
+        <input type="number" id="g2Rounds" min="1" max="50" value="10" style="max-width:90px">
+      </div>
+
+      <div class="row-label">Active colours <span style="color:var(--muted);font-size:.7rem">(which colours appear in game)</span></div>
+      <div class="chip-grid" id="g2AcolChips"></div>
+
+      <div class="row-label">Show colour name prompt on browser</div>
+      <div class="row" style="margin-bottom:14px">
+        <select id="g2Prompt">
+          <option value="0">Off</option>
+          <option value="1">On — show colour name here</option>
+        </select>
+      </div>
+
+    </div>
+
+    <div class="settings-actions">
+      <button class="btn-outline btn-sm" id="loadCfgBtn">Reload</button>
+      <button class="btn-primary btn-sm" id="saveCfgBtn">Save Settings</button>
+    </div>
+  </div>
+
+  <!-- Session -->
+  <div class="section">
+    <h2>Session</h2>
+    <div class="player-row">
+      <input type="text" id="playerName" placeholder="Enter player name (e.g. Dishu)" maxlength="20" autocomplete="off">
+    </div>
+    <div class="session-bar">
+      <div class="session-info">
+        <div class="si-label">Current Game</div>
+        <div class="si-val" id="sessionGameName">—</div>
+      </div>
+      <button class="btn-success" id="startBtn">Start Session</button>
+      <button class="btn-danger"  id="stopBtn" disabled>Stop</button>
+    </div>
+  </div>
+
+  <!-- Live scores -->
+  <div class="section">
+    <h2>Live Scores</h2>
+    <div class="score-grid">
+      <div class="score-card correct"><div class="sc-num" id="scCorrect">0</div><div class="sc-label">Correct</div></div>
+      <div class="score-card wrong">  <div class="sc-num" id="scWrong">0</div>  <div class="sc-label">Wrong</div></div>
+      <div class="score-card total">  <div class="sc-num" id="scTotal">0</div>  <div class="sc-label">Total</div></div>
+    </div>
+    <div class="acc-bar-wrap">
+      <div class="acc-bar-lbl"><span>Accuracy</span><span id="accuracyPct">—</span></div>
+      <div class="acc-bar"><div class="acc-fill" id="accuracyFill"></div></div>
+    </div>
+  </div>
+
+  <!-- Analytics -->
+  <div class="section">
+    <h2>Analytics</h2>
+    <div class="tabs" id="anlTabs">
+      <div class="tab active" data-tab="anl-g1">G1 Numbers</div>
+      <div class="tab" data-tab="anl-g1c">G1 Colours</div>
+      <div class="tab" data-tab="anl-g2">Game 2</div>
+      <div class="tab" data-tab="anl-players">Players</div>
+      <div class="tab" data-tab="anl-progress">Progress</div>
+    </div>
+    <div id="anl-g1">
+      <div class="player-stat-header">Device lifetime — accuracy per digit (green=strong, red=needs practice)</div>
+      <div class="heatmap" id="hmG1Nums"></div>
+    </div>
+    <div id="anl-g1c" style="display:none">
+      <div class="player-stat-header">Device lifetime — accuracy per colour in prompts</div>
+      <div class="color-bar" id="hmG1Colors"></div>
+    </div>
+    <div id="anl-g2" style="display:none">
+      <div class="player-stat-header">Device lifetime — accuracy per colour in Game 2</div>
+      <div class="color-bar" id="hmG2Colors"></div>
+    </div>
+    <div id="anl-players" style="display:none">
+      <div class="player-select-row">
+        <select id="playerSelect"><option value="">— select player —</option></select>
+        <button class="btn-outline btn-sm" id="deletePlayerBtn" style="color:var(--danger);border-color:var(--danger)">Delete</button>
+      </div>
+      <div id="playerStatsArea">
+        <div style="color:var(--muted);font-size:.85rem;text-align:center;padding:16px 0">Select a player above to view their progress</div>
+      </div>
+    </div>
+    <div id="anl-progress" style="display:none">
+      <div class="prog-controls">
+        <select id="progPlayer"><option value="">— all players —</option></select>
+        <button class="btn-primary btn-sm" id="printReportBtn">Print Report</button>
+      </div>
+      <div class="prog-period">
+        <button class="period-btn act" data-days="7">7 days</button>
+        <button class="period-btn" data-days="30">30 days</button>
+        <button class="period-btn" data-days="0">All time</button>
+      </div>
+      <div class="player-stat-header" id="progSessionCount" style="margin-bottom:8px"></div>
+      <canvas id="trendChart" class="trend-canvas"></canvas>
+      <div class="player-stat-header" style="margin-top:8px">Avg response time — per digit (green &lt;2.5s · yellow &lt;5s · red &gt;5s)</div>
+      <div class="rt-heatmap" id="rtNumHeatmap"></div>
+      <div class="player-stat-header" style="margin-top:12px">Avg response time — per colour</div>
+      <div class="color-bar" id="rtColBar"></div>
+      <div class="player-stat-header" style="margin-top:12px">Areas needing practice</div>
+      <div id="weakSpots"></div>
+    </div>
+
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-outline btn-sm" id="loadAnlBtn">Refresh</button>
+      <button class="btn-outline btn-sm" id="clearAnlBtn" style="color:var(--danger);border-color:var(--danger)">Clear Device Analytics</button>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="section">
+    <h2>Activity Log</h2>
+    <div id="logBox"></div>
+  </div>
+
+</div>
+
+<script>
+// ── UUIDs ─────────────────────────────────────────────────────────────────────
+const SVC  = '0000ff00-0000-1000-8000-00805f9b34fb';
+const U_LIST = '0000ff01-0000-1000-8000-00805f9b34fb';
+const U_SEL  = '0000ff02-0000-1000-8000-00805f9b34fb';
+const U_CFG  = '0000ff03-0000-1000-8000-00805f9b34fb';
+const U_SES  = '0000ff04-0000-1000-8000-00805f9b34fb';
+const U_SCR  = '0000ff05-0000-1000-8000-00805f9b34fb';
+const U_RND  = '0000ff06-0000-1000-8000-00805f9b34fb';
+const U_ANL  = '0000ff07-0000-1000-8000-00805f9b34fb';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let device,server,svc;
+let charList,charSel,charCfg,charSes,charScr,charRnd,charAnl;
+let selectedGameId = null;
+let games = [];
+let prevCorrect = 0, prevWrong = 0;
+let currentRound = {};   // last round_info from ESP32
+
+const COLOR_NAMES  = ['Red','Yellow','Orange','Green'];
+const COLOR_KEYS   = ['R','Y','O','G'];
+const COLOR_HEX    = ['#e05f5f','#e0e05f','#e0a85f','#5be05f'];
+
+// ── Encouragement / consolation phrases ──────────────────────────────────────
+const CORRECT_PHRASES = [
+  'Great job', 'Well done', 'Excellent', 'Fantastic', 'Brilliant',
+  'Amazing', 'You got it', 'Superstar', 'Wonderful', 'Perfect'
+];
+const WRONG_PHRASES = [
+  'Try again', 'Almost there', 'Have another look', 'Keep trying', 'Nearly'
+];
+function pick(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+function playerName() { return ($('playerName').value.trim()) || ''; }
+function withName(phrase) {
+  const n = playerName();
+  return n ? `${phrase}, ${n}!` : `${phrase}!`;
+}
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const connectBtn  = $('connectBtn');
+const connectArea = $('connectArea');
+const mainUI      = $('mainUI');
+const statusDot   = $('statusDot');
+const statusText  = $('statusText');
+
+const enc = v => new TextEncoder().encode(v);
+const dec = v => new TextDecoder().decode(v);
+
+// ── Logging ───────────────────────────────────────────────────────────────────
+function log(msg, type='info') {
+  const p = document.createElement('p');
+  p.className = type;
+  p.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  $('logBox').appendChild(p);
+  $('logBox').scrollTop = 99999;
+}
+function setStatus(s) {
+  statusDot.className = s;
+  statusText.textContent = {connected:'Connected',connecting:'Connecting…','':`Disconnected`}[s]??s;
+}
+
+// ── Build number chips ────────────────────────────────────────────────────────
+function buildNumChips() {
+  const el = $('numChips'); el.innerHTML='';
+  for (let i=0;i<=9;i++) {
+    const c = document.createElement('div');
+    c.className='chip on'; c.textContent=i; c.dataset.num=i;
+    c.onclick = () => c.classList.toggle('on');
+    el.appendChild(c);
+  }
+}
+function buildColorChips(containerId, allOn=true) {
+  const el = $(containerId); el.innerHTML='';
+  COLOR_NAMES.forEach((name,i) => {
+    const c = document.createElement('div');
+    c.className=`chip color-${COLOR_KEYS[i]}${allOn?' on':''}`;
+    c.textContent=COLOR_KEYS[i]; c.dataset.cidx=i;
+    c.onclick = () => c.classList.toggle('on');
+    el.appendChild(c);
+  });
+}
+function chipsToMask(containerId) {
+  let m=0;
+  $(containerId).querySelectorAll('.chip').forEach(c => {
+    if(c.classList.contains('on')) m |= (1<<(parseInt(c.dataset.cidx??c.dataset.num)));
+  });
+  return m;
+}
+function maskToNumChips(mask) {
+  $('numChips').querySelectorAll('.chip').forEach(c=>{
+    const n=parseInt(c.dataset.num);
+    c.classList.toggle('on', !!(mask&(1<<n)));
+  });
+}
+function maskToColorChips(containerId, mask) {
+  $(containerId).querySelectorAll('.chip').forEach(c=>{
+    const i=parseInt(c.dataset.cidx);
+    c.classList.toggle('on', !!(mask&(1<<i)));
+  });
+}
+function numChipsMask() {
+  let m=0;
+  $('numChips').querySelectorAll('.chip').forEach(c=>{
+    if(c.classList.contains('on')) m|=(1<<parseInt(c.dataset.num));
+  });
+  return m;
+}
+
+// ── Init UI ───────────────────────────────────────────────────────────────────
+buildNumChips();
+buildColorChips('g1AcolChips');
+buildColorChips('g1PcolChips');
+buildColorChips('g2AcolChips');
+
+$('g1Ring').addEventListener('change',()=>{
+  $('g1FixedColorRow').style.display = $('g1Ring').value==='0'?'flex':'none';
+});
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+const ANL_TABS = ['anl-g1','anl-g1c','anl-g2','anl-players','anl-progress'];
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    t.closest('.tabs').querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    ANL_TABS.forEach(id=>{ const el=$(id); if(el) el.style.display='none'; });
+    const target=$(t.dataset.tab); if(target) target.style.display='';
+    if(t.dataset.tab==='anl-players')  renderPlayerSelect();
+    if(t.dataset.tab==='anl-progress') renderProgressTab();
+  });
+});
+
+// ── Connect ───────────────────────────────────────────────────────────────────
+connectBtn.addEventListener('click', async ()=>{
+  if(!navigator.bluetooth){alert('Web Bluetooth requires Chrome or Edge.');return;}
+  try {
+    setStatus('connecting');
+    log('Scanning for LearnBuddy…');
+    device = await navigator.bluetooth.requestDevice({
+      filters:[{namePrefix:'LearnBuddy'}],
+      optionalServices:[SVC]
+    });
+    log(`Found: ${device.name}`);
+    server = await device.gatt.connect();
+    log('GATT connected');
+    svc = await server.getPrimaryService(SVC);
+    log('Service found');
+    charList = await svc.getCharacteristic(U_LIST);
+    charSel  = await svc.getCharacteristic(U_SEL);
+    charCfg  = await svc.getCharacteristic(U_CFG);
+    charSes  = await svc.getCharacteristic(U_SES);
+    charScr  = await svc.getCharacteristic(U_SCR);
+    charRnd  = await svc.getCharacteristic(U_RND);
+    charAnl  = await svc.getCharacteristic(U_ANL);
+    log('Characteristics ready');
+
+    await charScr.startNotifications();
+    charScr.addEventListener('characteristicvaluechanged', onScoreNotify);
+    await charRnd.startNotifications();
+    charRnd.addEventListener('characteristicvaluechanged', onRoundNotify);
+
+    device.addEventListener('gattserverdisconnected', onDisconnected);
+
+    setStatus('connected');
+    log(`Connected to ${device.name}`,'ok');
+    connectArea.style.display='none';
+    mainUI.style.display='block';
+    $('ttsSettings').style.display='flex';
+    await loadGameList();
+    await loadAnalytics();
+  } catch(e) {
+    setStatus('');
+    log(`Connect failed: ${e.message}`,'err');
+    console.error(e);
+  }
+});
+
+function onDisconnected(){
+  setStatus('');
+  log('Device disconnected','warn');
+  speechSynthesis.cancel();
+  connectArea.style.display='block';
+  mainUI.style.display='none';
+  $('ttsSettings').style.display='none';
+  $('promptBox').style.display='none';
+  selectedGameId=null;
+}
+
+// ── Game list ─────────────────────────────────────────────────────────────────
+async function loadGameList(){
+  try{
+    const v=await charList.readValue();
+    games=JSON.parse(dec(v));
+    renderGameGrid();
+    log(`Loaded ${games.length} games`,'ok');
+  }catch(e){log(`Game list failed: ${e.message}`,'err');}
+}
+function renderGameGrid(){
+  const el=$('gameGrid'); el.innerHTML='';
+  games.forEach(g=>{
+    const c=document.createElement('div');
+    c.className='game-card'; c.dataset.id=g.id;
+    c.innerHTML=`<div class="gname">Game ${g.id}</div>
+      <div class="gname" style="font-size:.82rem">${g.name}</div>
+      <div class="gdesc">${g.desc}</div>
+      <span class="badge">${g.phone?'App Only':'Standalone'}</span>`;
+    c.addEventListener('click',()=>selectGame(g.id));
+    el.appendChild(c);
+  });
+}
+async function selectGame(id){
+  selectedGameId=id;
+  document.querySelectorAll('.game-card').forEach(c=>c.classList.toggle('selected',+c.dataset.id===id));
+  const g=games.find(x=>x.id===id);
+  $('sessionGameName').textContent = g?g.name:`Game ${id}`;
+  $('settingsG1').style.display = id===1?'':'none';
+  $('settingsG2').style.display = id===2?'':'none';
+  log(`Selected Game ${id}`);
+  try{
+    await charSel.writeValue(new Uint8Array([id]));
+    await loadConfig();
+  }catch(e){log(`Select failed: ${e.message}`,'err');}
+}
+
+// ── Config ────────────────────────────────────────────────────────────────────
+async function loadConfig(){
+  try{
+    const v=await charCfg.readValue();
+    const c=JSON.parse(dec(v));
+    if(selectedGameId===1){
+      $('g1Rounds').value=c.rounds??10;
+      if(c.nums) maskToNumChips(parseInt(c.nums,2));
+      else { let m=0; for(let i=0;i<10;i++) if(c.nums&&c.nums[i]==='1') m|=(1<<i); }
+      // nums is a 10-char binary string, index=digit
+      if(c.nums){
+        $('numChips').querySelectorAll('.chip').forEach(ch=>{
+          const n=parseInt(ch.dataset.num);
+          ch.classList.toggle('on', c.nums[n]==='1');
+        });
+      }
+      $('g1Prompt').value  = c.prompt??0;
+      $('g1Ring').value    = c.ring??1;
+      $('g1Ring').dispatchEvent(new Event('change'));
+      $('g1FixedCol').value= c.fixed??0;
+      $('g1Combo').value   = c.combo??0;
+      $('g1Arrange').value = c.arrange??2;
+      maskToColorChips('g1AcolChips', c.acolors??15);
+      maskToColorChips('g1PcolChips', c.pcolors??15);
+    } else if(selectedGameId===2){
+      $('g2Rounds').value = c.rounds??10;
+      maskToColorChips('g2AcolChips', c.acolors??15);
+      $('g2Prompt').value = c.prompt_en??0;
+    }
+    log('Config loaded','ok');
+  }catch(e){log(`Config load failed: ${e.message}`,'err');}
+}
+
+$('loadCfgBtn').addEventListener('click', loadConfig);
+
+$('saveCfgBtn').addEventListener('click', async ()=>{
+  if(!selectedGameId){log('Select a game first','warn');return;}
+  let json;
+  if(selectedGameId===1){
+    let nums=''; for(let i=0;i<10;i++) nums+=($('numChips').querySelector(`[data-num="${i}"]`)?.classList.contains('on')?'1':'0');
+    json=JSON.stringify({
+      rounds:+$('g1Rounds').value, nums,
+      prompt:+$('g1Prompt').value,
+      acolors:chipsToMask('g1AcolChips'),
+      pcolors:chipsToMask('g1PcolChips'),
+      combo:+$('g1Combo').value,
+      ring:+$('g1Ring').value,
+      arrange:+$('g1Arrange').value,
+      fixed:+$('g1FixedCol').value
+    });
+  } else {
+    json=JSON.stringify({
+      rounds:+$('g2Rounds').value,
+      acolors:chipsToMask('g2AcolChips'),
+      prompt_en:+$('g2Prompt').value
+    });
+  }
+  try{
+    await charCfg.writeValue(enc(json));
+    log(`Settings saved for Game ${selectedGameId}`,'ok');
+  }catch(e){log(`Save failed: ${e.message}`,'err');}
+});
+
+// ── Session ───────────────────────────────────────────────────────────────────
+$('startBtn').addEventListener('click', async ()=>{
+  if(!selectedGameId){log('Select a game first','warn');return;}
+  try{
+    await charSes.writeValue(new Uint8Array([1]));
+    $('startBtn').disabled=true; $('stopBtn').disabled=false;
+    $('promptBox').style.display='block';
+    resetScores();
+    sessionAccum = newAccum(); // fresh RT + accuracy accumulators
+    log(`Session started — Game ${selectedGameId}`,'ok');
+    const n=playerName();
+    if(n){
+      speak(`Let's start, ${n}!`);
+      localStorage.setItem('lb_last_player', n);
+    }
+  }catch(e){log(`Start failed: ${e.message}`,'err');}
+});
+$('stopBtn').addEventListener('click', async ()=>{
+  try{
+    await charSes.writeValue(new Uint8Array([0]));
+    $('startBtn').disabled=false; $('stopBtn').disabled=true;
+    $('promptBox').style.display='none';
+    saveSessionHistory(); // persist session record before clearing scores
+    const n=playerName();
+    if(n) speak(`Good work today, ${n}!`);
+    log('Session stopped','warn');
+    renderPlayerSelect();
+    await loadAnalytics();
+  }catch(e){log(`Stop failed: ${e.message}`,'err');}
+});
+
+// ── Score notifications ───────────────────────────────────────────────────────
+function resetScores(){
+  prevCorrect=0; prevWrong=0;
+  ['scCorrect','scWrong','scTotal'].forEach(id=>$(id).textContent='0');
+  $('accuracyPct').textContent='—'; $('accuracyFill').style.width='0%';
+}
+function updateScores(d){
+  $('scCorrect').textContent=d.correct;
+  $('scWrong').textContent=d.wrong;
+  $('scTotal').textContent=d.total;
+  if(d.total>0){
+    const pct=Math.round((d.correct/d.total)*100);
+    $('accuracyPct').textContent=pct+'%';
+    $('accuracyFill').style.width=pct+'%';
+  }
+}
+function onScoreNotify(e){
+  try{
+    const d=JSON.parse(dec(e.target.value));
+    const wasCorrect = d.correct > prevCorrect;
+    const wasWrong   = d.wrong   > prevWrong;
+
+    // Response time: from when the round notification arrived to now
+    const rt = currentRound.startTime ? Date.now() - currentRound.startTime : 0;
+    currentRound.startTime = 0; // consume — next answer on same round gets 0
+
+    updateScores(d);
+
+    if(wasCorrect || wasWrong){
+      accumulateRT(rt, wasCorrect);
+      if(wasCorrect){
+        speak(withName(pick(CORRECT_PHRASES)));
+        savePlayerAnswer(true);
+      } else {
+        speak(withName(pick(WRONG_PHRASES)));
+        savePlayerAnswer(false);
+      }
+    }
+
+    prevCorrect=d.correct; prevWrong=d.wrong;
+  }catch(_){}
+}
+
+// ── Text-to-speech ────────────────────────────────────────────────────────────
+let ttsVoices = [];
+let lastPrompt = '';
+
+function loadVoices() {
+  ttsVoices = speechSynthesis.getVoices();
+  const sel = $('ttsVoice');
+  sel.innerHTML = '';
+  // Prefer English voices; put them first
+  const eng = ttsVoices.filter(v => v.lang.startsWith('en'));
+  const rest = ttsVoices.filter(v => !v.lang.startsWith('en'));
+  [...eng, ...rest].forEach((v, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${v.name} (${v.lang})`;
+    // Default: prefer a female English voice for child-friendliness
+    if (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira')
+        || v.name.toLowerCase().includes('hazel') || v.name.toLowerCase().includes('samantha'))
+      opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+// Voices load async on some browsers
+speechSynthesis.onvoiceschanged = loadVoices;
+loadVoices();
+
+function speak(text) {
+  if (!$('ttsOn').checked || !text) return;
+  speechSynthesis.cancel(); // stop any current speech
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.rate  = parseFloat($('ttsRate').value);
+  utt.pitch = parseFloat($('ttsPitch').value);
+  const voiceIdx = parseInt($('ttsVoice').value);
+  const allVoices = speechSynthesis.getVoices();
+  const engVoices = allVoices.filter(v => v.lang.startsWith('en'));
+  const ordered = [...engVoices, ...allVoices.filter(v => !v.lang.startsWith('en'))];
+  if (ordered[voiceIdx]) utt.voice = ordered[voiceIdx];
+  speechSynthesis.speak(utt);
+}
+
+$('repeatBtn').addEventListener('click', () => speak(lastPrompt));
+
+// ── Round notifications ───────────────────────────────────────────────────────
+function onRoundNotify(e) {
+  try {
+    const d = JSON.parse(dec(e.target.value));
+    const prompt = d.p || 'Count the lights and press the button';
+    lastPrompt = prompt;
+
+    $('promptText').textContent = prompt;
+    $('promptGame').textContent =
+      `Game ${d.game ?? selectedGameId} — ${d.n} LED${d.n !== 1 ? 's' : ''}`;
+
+    // Color count pills — show/hide based on how many LEDs of each colour
+    const keys = ['r','y','o','g'];
+    const pillIds = ['pillR','pillY','pillO','pillG'];
+    const cntIds  = ['cntR','cntY','cntO','cntG'];
+    keys.forEach((k, i) => {
+      const count = d[k] ?? 0;
+      $(cntIds[i]).textContent = `×${count}`;
+      $(pillIds[i]).classList.toggle('active', count > 0);
+    });
+
+    // Store round context for per-player analytics + response-time tracking
+    currentRound = { ans: d.ans ?? 0xFF, ask: d.ask ?? 0xFF, gid: d.game ?? selectedGameId, startTime: Date.now() };
+
+    // Speak the prompt
+    speak(prompt);
+  } catch(_) {}
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+async function loadAnalytics(){
+  try{
+    const v=await charAnl.readValue();
+    const d=JSON.parse(dec(v));
+    renderG1Nums(d.g1??{});
+    renderColorBar('hmG1Colors', d.g1?.cc??[], d.g1?.cw??[]);
+    renderColorBar('hmG2Colors', d.g2?.c??[], d.g2?.w??[]);
+    log('Analytics loaded','ok');
+  }catch(e){log(`Analytics failed: ${e.message}`,'err');}
+}
+function accColor(c,w){
+  const t=c+w; if(t===0) return 'var(--border)';
+  const pct=c/t;
+  if(pct>=.8) return '#2e7d32';
+  if(pct>=.5) return '#f9a825';
+  return '#c62828';
+}
+function renderG1Nums(g1){
+  const el=$('hmG1Nums'); el.innerHTML='';
+  for(let i=0;i<=9;i++){
+    const c=g1.c?.[i]??0, w=g1.w?.[i]??0, t=c+w;
+    const div=document.createElement('div');
+    div.className='hm-cell';
+    div.style.background=accColor(c,w);
+    div.innerHTML=`<div style="font-size:.9rem;font-weight:800">${i}</div>
+      <div style="font-size:.6rem;color:#ffffffcc">${t>0?Math.round(c/t*100)+'%':'—'}</div>`;
+    div.title=`${i}: ${c} correct, ${w} wrong`;
+    el.appendChild(div);
+  }
+}
+function renderColorBar(containerId, correct, wrong){
+  const el=$(containerId); el.innerHTML='';
+  COLOR_NAMES.forEach((name,i)=>{
+    const c=correct[i]??0, w=wrong[i]??0, t=c+w;
+    const div=document.createElement('div');
+    div.className='cb-cell';
+    div.style.background=accColor(c,w);
+    div.style.color='#ffffffdd';
+    div.innerHTML=`<div>${name}</div>
+      <div style="font-size:.85rem;font-weight:800">${t>0?Math.round(c/t*100)+'%':'—'}</div>
+      <div style="font-size:.6rem;opacity:.7">${c}✓ ${w}✗</div>`;
+    el.appendChild(div);
+  });
+}
+
+$('loadAnlBtn').addEventListener('click', loadAnalytics);
+$('clearAnlBtn').addEventListener('click', async ()=>{
+  if(!confirm('Clear device lifetime analytics? This cannot be undone.')) return;
+  log('Clear device analytics not yet implemented — contact support','warn');
+});
+
+// ── Per-player analytics (browser localStorage) ───────────────────────────────
+// Key: lb_p_{name}_g{gameId}  → {c:[10 or 4], w:[10 or 4], sessions:N}
+function plKey(name, gameId, type) { return `lb_p_${name}_g${gameId}_${type}`; }
+
+function savePlayerAnswer(correct) {
+  const n = playerName(); if(!n) return;
+  const gid = selectedGameId ?? 1;
+  const num  = currentRound.ans ?? 0xFF;
+  const cidx = currentRound.ask ?? 0xFF;
+
+  if(gid===1){
+    // per-digit
+    const kd = plKey(n,1,'nums');
+    const d  = JSON.parse(localStorage.getItem(kd)||'{"c":[0,0,0,0,0,0,0,0,0,0],"w":[0,0,0,0,0,0,0,0,0,0]}');
+    if(num<=9){ correct ? d.c[num]++ : d.w[num]++; }
+    localStorage.setItem(kd, JSON.stringify(d));
+    // per-colour prompt
+    if(cidx<4){
+      const kc = plKey(n,1,'cols');
+      const dc = JSON.parse(localStorage.getItem(kc)||'{"c":[0,0,0,0],"w":[0,0,0,0]}');
+      correct ? dc.c[cidx]++ : dc.w[cidx]++;
+      localStorage.setItem(kc, JSON.stringify(dc));
+    }
+  } else if(gid===2){
+    if(cidx<4){
+      const kc = plKey(n,2,'cols');
+      const dc = JSON.parse(localStorage.getItem(kc)||'{"c":[0,0,0,0],"w":[0,0,0,0]}');
+      correct ? dc.c[cidx]++ : dc.w[cidx]++;
+      localStorage.setItem(kc, JSON.stringify(dc));
+    }
+  }
+
+  // track known players
+  const players = JSON.parse(localStorage.getItem('lb_players')||'[]');
+  if(!players.includes(n)){ players.push(n); localStorage.setItem('lb_players', JSON.stringify(players)); }
+}
+
+function allPlayers() { return JSON.parse(localStorage.getItem('lb_players')||'[]'); }
+
+function renderPlayerSelect() {
+  const sel = $('playerSelect');
+  const current = sel.value;
+  sel.innerHTML='<option value="">— select player —</option>';
+  allPlayers().forEach(n=>{
+    const o=document.createElement('option');
+    o.value=n; o.textContent=n;
+    if(n===current) o.selected=true;
+    sel.appendChild(o);
+  });
+  // Restore last used player
+  const last = localStorage.getItem('lb_last_player');
+  if(last) { sel.value=last; showPlayerStats(last); }
+}
+
+function showPlayerStats(name) {
+  const area = $('playerStatsArea');
+  if(!name){ area.innerHTML='<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:16px 0">Select a player above</div>'; return; }
+
+  const g1n = JSON.parse(localStorage.getItem(plKey(name,1,'nums'))||'{"c":[0,0,0,0,0,0,0,0,0,0],"w":[0,0,0,0,0,0,0,0,0,0]}');
+  const g1c = JSON.parse(localStorage.getItem(plKey(name,1,'cols'))||'{"c":[0,0,0,0],"w":[0,0,0,0]}');
+  const g2c = JSON.parse(localStorage.getItem(plKey(name,2,'cols'))||'{"c":[0,0,0,0],"w":[0,0,0,0]}');
+
+  const totalAnswers = g1n.c.reduce((a,b)=>a+b,0)+g1n.w.reduce((a,b)=>a+b,0);
+
+  let html=`<div style="font-weight:700;font-size:1rem;margin-bottom:12px;color:var(--accent2)">${name}</div>`;
+  html+=`<div style="font-size:.72rem;color:var(--muted);margin-bottom:4px">${totalAnswers} total answers recorded in this browser</div>`;
+
+  html+=`<div class="player-stat-header" style="margin-top:12px">Game 1 — per digit</div><div class="heatmap" id="pm_g1n">`;
+  for(let i=0;i<=9;i++){
+    const c=g1n.c[i],w=g1n.w[i],t=c+w;
+    html+=`<div class="hm-cell" style="background:${accColor(c,w)}" title="${i}: ${c}✓ ${w}✗">
+      <div style="font-size:.9rem;font-weight:800">${i}</div>
+      <div style="font-size:.6rem;color:#ffffffcc">${t>0?Math.round(c/t*100)+'%':'—'}</div></div>`;
+  }
+  html+=`</div>`;
+
+  html+=`<div class="player-stat-header" style="margin-top:12px">Game 1 — colour prompts</div><div class="color-bar">`;
+  COLOR_NAMES.forEach((nm,i)=>{
+    const c=g1c.c[i],w=g1c.w[i],t=c+w;
+    html+=`<div class="cb-cell" style="background:${accColor(c,w)};color:#ffffffdd">
+      <div>${nm}</div><div style="font-size:.85rem;font-weight:800">${t>0?Math.round(c/t*100)+'%':'—'}</div>
+      <div style="font-size:.6rem;opacity:.7">${c}✓ ${w}✗</div></div>`;
+  });
+  html+=`</div>`;
+
+  html+=`<div class="player-stat-header" style="margin-top:12px">Game 2 — colour matching</div><div class="color-bar">`;
+  COLOR_NAMES.forEach((nm,i)=>{
+    const c=g2c.c[i],w=g2c.w[i],t=c+w;
+    html+=`<div class="cb-cell" style="background:${accColor(c,w)};color:#ffffffdd">
+      <div>${nm}</div><div style="font-size:.85rem;font-weight:800">${t>0?Math.round(c/t*100)+'%':'—'}</div>
+      <div style="font-size:.6rem;opacity:.7">${c}✓ ${w}✗</div></div>`;
+  });
+  html+=`</div>`;
+
+  area.innerHTML = html;
+}
+
+$('playerSelect').addEventListener('change', e => showPlayerStats(e.target.value));
+
+$('deletePlayerBtn').addEventListener('click', ()=>{
+  const n=$('playerSelect').value; if(!n) return;
+  if(!confirm(`Delete all data for ${n}?`)) return;
+  ['nums','cols'].forEach(t=>{ localStorage.removeItem(plKey(n,1,t)); localStorage.removeItem(plKey(n,2,t)); });
+  const players=allPlayers().filter(p=>p!==n);
+  localStorage.setItem('lb_players',JSON.stringify(players));
+  renderPlayerSelect();
+  log(`Deleted player: ${n}`,'warn');
+});
+
+// Restore last player name in input on load
+const lastPlayer = localStorage.getItem('lb_last_player');
+if(lastPlayer) $('playerName').value=lastPlayer;
+$('playerName').addEventListener('change', ()=>{
+  const n=playerName(); if(n) localStorage.setItem('lb_last_player',n);
+});
+
+// ── Session accumulator (RT + per-answer accuracy, lives in RAM) ──────────────
+let sessionAccum = newAccum();
+function newAccum() {
+  return {
+    rt_sum: new Array(10).fill(0), rt_cnt: new Array(10).fill(0),
+    rt_col_sum: new Array(4).fill(0), rt_col_cnt: new Array(4).fill(0),
+    c_by_num: new Array(10).fill(0), w_by_num: new Array(10).fill(0),
+    c_by_col: new Array(4).fill(0),  w_by_col: new Array(4).fill(0),
+  };
+}
+
+function accumulateRT(rt, correct) {
+  const num  = currentRound.ans;
+  const cidx = currentRound.ask;
+  const gid  = currentRound.gid ?? selectedGameId ?? 1;
+  if(rt > 200 && rt < 60000) { // sanity: 200ms–60s
+    if(gid===1 && num!==undefined && num<=9){ sessionAccum.rt_sum[num]+=rt; sessionAccum.rt_cnt[num]++; }
+    if(cidx!==undefined && cidx<4){ sessionAccum.rt_col_sum[cidx]+=rt; sessionAccum.rt_col_cnt[cidx]++; }
+  }
+  if(gid===1 && num!==undefined && num<=9){
+    if(correct) sessionAccum.c_by_num[num]++; else sessionAccum.w_by_num[num]++;
+  }
+  if(cidx!==undefined && cidx<4){
+    if(correct) sessionAccum.c_by_col[cidx]++; else sessionAccum.w_by_col[cidx]++;
+  }
+}
+
+function saveSessionHistory() {
+  const n = playerName(); if(!n) return;
+  const correct = parseInt($('scCorrect').textContent)||0;
+  const wrong   = parseInt($('scWrong').textContent)||0;
+  if(correct+wrong===0) return;
+  const rec = {
+    ts: Date.now(), player: n, gid: selectedGameId??1, correct, wrong,
+    rts:  [...sessionAccum.rt_sum],  rtc: [...sessionAccum.rt_cnt],
+    rtcs: [...sessionAccum.rt_col_sum], rtcc: [...sessionAccum.rt_col_cnt],
+    cn: [...sessionAccum.c_by_num], wn: [...sessionAccum.w_by_num],
+    cc: [...sessionAccum.c_by_col], wc: [...sessionAccum.w_by_col],
+  };
+  const hist = JSON.parse(localStorage.getItem('lb_history')||'[]');
+  hist.push(rec);
+  if(hist.length>500) hist.splice(0, hist.length-500);
+  localStorage.setItem('lb_history', JSON.stringify(hist));
+  sessionAccum = newAccum();
+  log(`Progress saved — ${correct} correct, ${wrong} wrong`,'ok');
+}
+
+function getHistory(player, days) {
+  const all    = JSON.parse(localStorage.getItem('lb_history')||'[]');
+  const cutoff = days>0 ? Date.now()-days*86400000 : 0;
+  return all.filter(r=>(!player||r.player===player)&&(!cutoff||r.ts>=cutoff));
+}
+
+// ── Progress tab ──────────────────────────────────────────────────────────────
+let progPlayer='', progDays=7;
+
+function renderProgressTab() {
+  const sel=$('progPlayer');
+  const cur=sel.value||progPlayer;
+  sel.innerHTML='<option value="">— all players —</option>';
+  allPlayers().forEach(n=>{
+    const o=document.createElement('option');
+    o.value=n; o.textContent=n;
+    if(n===cur) o.selected=true;
+    sel.appendChild(o);
+  });
+  progPlayer=sel.value;
+  const sessions=getHistory(progPlayer, progDays);
+  $('progSessionCount').textContent=
+    `${sessions.length} session${sessions.length!==1?'s':''} in period`+
+    (progPlayer?` · ${progPlayer}`:'');
+  drawTrendChart('trendChart', sessions);
+  renderRTNumHeatmap(sessions);
+  renderRTColBar(sessions);
+  renderWeakSpots(sessions);
+}
+
+function rtColor(avgMs) {
+  if(!avgMs) return 'var(--border)';
+  if(avgMs<2500) return '#2e7d32';
+  if(avgMs<5000) return '#f9a825';
+  return '#c62828';
+}
+
+function drawTrendChart(id, sessions) {
+  const canvas=$(id); if(!canvas) return;
+  const W=canvas.width=canvas.parentElement.clientWidth||540;
+  const H=canvas.height=165;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  if(!sessions.length){
+    ctx.fillStyle='#8889a0'; ctx.font='13px Segoe UI'; ctx.textAlign='center';
+    ctx.fillText('No sessions recorded yet — complete a session to see trend',W/2,H/2);
+    return;
+  }
+  const P={l:36,r:12,t:12,b:30};
+  const cW=W-P.l-P.r, cH=H-P.t-P.b;
+  // grid
+  ctx.strokeStyle='#363a4f'; ctx.lineWidth=1;
+  [0,25,50,75,100].forEach(pct=>{
+    const gy=P.t+cH*(1-pct/100);
+    ctx.beginPath(); ctx.moveTo(P.l,gy); ctx.lineTo(W-P.r,gy); ctx.stroke();
+    ctx.fillStyle='#8889a0'; ctx.font='9px Segoe UI'; ctx.textAlign='right';
+    ctx.fillText(pct+'%',P.l-4,gy+3);
+  });
+  const disp=sessions.slice(-30);
+  const pts=disp.map((s,i)=>{
+    const t=s.correct+s.wrong, acc=t>0?s.correct/t:0;
+    const x=P.l+(disp.length===1?cW/2:cW*i/(disp.length-1));
+    const y=P.t+cH*(1-acc);
+    return {x,y,acc,s};
+  });
+  // area
+  if(pts.length>1){
+    ctx.beginPath(); ctx.moveTo(pts[0].x,P.t+cH);
+    pts.forEach(p=>ctx.lineTo(p.x,p.y));
+    ctx.lineTo(pts[pts.length-1].x,P.t+cH); ctx.closePath();
+    ctx.fillStyle='rgba(91,200,175,0.12)'; ctx.fill();
+  }
+  // line
+  if(pts.length>1){
+    ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+    pts.forEach(p=>ctx.lineTo(p.x,p.y));
+    ctx.strokeStyle='#5bc8af'; ctx.lineWidth=2; ctx.stroke();
+  }
+  // dots + date labels
+  const step=Math.max(1,Math.floor(disp.length/8));
+  pts.forEach((p,i)=>{
+    ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2);
+    ctx.fillStyle=p.acc>=.8?'#5be05f':p.acc>=.5?'#e0a85f':'#e05f5f';
+    ctx.fill(); ctx.strokeStyle='#1c1f2e'; ctx.lineWidth=1.5; ctx.stroke();
+    if(i%step===0||i===disp.length-1){
+      const d=new Date(p.s.ts);
+      ctx.fillStyle='#8889a0'; ctx.font='9px Segoe UI'; ctx.textAlign='center';
+      ctx.fillText(`${d.getMonth()+1}/${d.getDate()}`,p.x,H-P.b+12);
+    }
+  });
+}
+
+function renderRTNumHeatmap(sessions) {
+  const el=$('rtNumHeatmap'); if(!el) return; el.innerHTML='';
+  const sum=new Array(10).fill(0), cnt=new Array(10).fill(0);
+  sessions.forEach(s=>{ (s.rts||[]).forEach((v,i)=>sum[i]+=v); (s.rtc||[]).forEach((v,i)=>cnt[i]+=v); });
+  for(let i=0;i<=9;i++){
+    const avg=cnt[i]>0?Math.round(sum[i]/cnt[i]):0;
+    const div=document.createElement('div');
+    div.className='rt-cell'; div.style.background=rtColor(avg);
+    div.innerHTML=`<div style="font-size:.9rem;font-weight:800">${i}</div>
+      <div style="font-size:.55rem">${avg>0?(avg/1000).toFixed(1)+'s':'—'}</div>`;
+    div.title=`Digit ${i}: avg ${avg}ms, ${cnt[i]} attempts`;
+    el.appendChild(div);
+  }
+}
+
+function renderRTColBar(sessions) {
+  const el=$('rtColBar'); if(!el) return; el.innerHTML='';
+  const sum=new Array(4).fill(0), cnt=new Array(4).fill(0);
+  sessions.forEach(s=>{ (s.rtcs||[]).forEach((v,i)=>sum[i]+=v); (s.rtcc||[]).forEach((v,i)=>cnt[i]+=v); });
+  COLOR_NAMES.forEach((nm,i)=>{
+    const avg=cnt[i]>0?Math.round(sum[i]/cnt[i]):0;
+    const div=document.createElement('div');
+    div.className='cb-cell'; div.style.background=rtColor(avg); div.style.color='#ffffffdd';
+    div.innerHTML=`<div>${nm}</div>
+      <div style="font-size:.85rem;font-weight:800">${avg>0?(avg/1000).toFixed(1)+'s':'—'}</div>
+      <div style="font-size:.6rem;opacity:.7">${cnt[i]} tries</div>`;
+    el.appendChild(div);
+  });
+}
+
+function renderWeakSpots(sessions) {
+  const el=$('weakSpots'); if(!el) return;
+  if(!sessions.length){ el.innerHTML='<div style="color:var(--muted);font-size:.82rem">No data yet</div>'; return; }
+  const items=[];
+  // per-digit accuracy
+  const cn=new Array(10).fill(0), wn=new Array(10).fill(0);
+  sessions.forEach(s=>{ (s.cn||[]).forEach((v,i)=>cn[i]+=v); (s.wn||[]).forEach((v,i)=>wn[i]+=v); });
+  for(let i=0;i<=9;i++){
+    const t=cn[i]+wn[i]; if(t<3) continue;
+    const acc=cn[i]/t;
+    if(acc<0.7) items.push({label:`Number ${i}`,acc,t,type:'acc'});
+  }
+  // per-colour accuracy
+  const cc=new Array(4).fill(0), wc=new Array(4).fill(0);
+  sessions.forEach(s=>{ (s.cc||[]).forEach((v,i)=>cc[i]+=v); (s.wc||[]).forEach((v,i)=>wc[i]+=v); });
+  COLOR_NAMES.forEach((nm,i)=>{
+    const t=cc[i]+wc[i]; if(t<3) return;
+    const acc=cc[i]/t;
+    if(acc<0.7) items.push({label:`${nm} colour`,acc,t,type:'acc'});
+  });
+  // slow RT
+  const rs=new Array(10).fill(0), rc=new Array(10).fill(0);
+  sessions.forEach(s=>{ (s.rts||[]).forEach((v,i)=>rs[i]+=v); (s.rtc||[]).forEach((v,i)=>rc[i]+=v); });
+  for(let i=0;i<=9;i++){
+    if(rc[i]<3) continue;
+    const avg=rs[i]/rc[i];
+    if(avg>5000) items.push({label:`Number ${i} response time`,avg,t:rc[i],type:'rt'});
+  }
+  if(!items.length){
+    el.innerHTML='<div style="color:var(--success);font-size:.82rem;padding:8px 0">No weak spots — great work!</div>';
+    return;
+  }
+  el.innerHTML=items.map(it=>{
+    if(it.type==='rt'){
+      return `<div class="weak-item"><span class="wi-badge" style="background:#c62828;color:#fff">SLOW</span>${it.label}: avg ${(it.avg/1000).toFixed(1)}s (${it.t} tries)</div>`;
+    }
+    const pct=Math.round(it.acc*100);
+    return `<div class="weak-item"><span class="wi-badge" style="background:${pct<50?'#c62828':'#f9a825'};color:#fff">${pct}%</span>${it.label} — needs practice (${it.t} attempts)</div>`;
+  }).join('');
+}
+
+// Period buttons
+document.querySelectorAll('.period-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('act'));
+    btn.classList.add('act');
+    progDays=parseInt(btn.dataset.days);
+    renderProgressTab();
+  });
+});
+$('progPlayer').addEventListener('change',e=>{ progPlayer=e.target.value; renderProgressTab(); });
+
+// ── Print report ──────────────────────────────────────────────────────────────
+$('printReportBtn').addEventListener('click',()=>{
+  const player=progPlayer||'All Players';
+  const sessions=getHistory(progPlayer, progDays);
+  const w=window.open('','_blank','width=820,height=680');
+  if(!w){alert('Pop-up blocked — please allow pop-ups for this page');return;}
+  w.document.write(buildPrintReport(player, progDays, sessions));
+  w.document.close();
+  w.focus();
+  setTimeout(()=>w.print(),700);
+});
+
+function buildPrintReport(player, days, sessions) {
+  const now=new Date();
+  const periodStr=days===0?'All Time':`Last ${days} Days`;
+  const totalC=sessions.reduce((a,s)=>a+s.correct,0);
+  const totalW=sessions.reduce((a,s)=>a+s.wrong,0);
+  const totalT=totalC+totalW;
+  const overallAcc=totalT>0?Math.round(totalC/totalT*100):0;
+
+  // Aggregate
+  const cn=new Array(10).fill(0),wn=new Array(10).fill(0),rs=new Array(10).fill(0),rc=new Array(10).fill(0);
+  const cc=new Array(4).fill(0),wc=new Array(4).fill(0),rcs=new Array(4).fill(0),rcc=new Array(4).fill(0);
+  sessions.forEach(s=>{
+    (s.cn||[]).forEach((v,i)=>cn[i]+=v); (s.wn||[]).forEach((v,i)=>wn[i]+=v);
+    (s.rts||[]).forEach((v,i)=>rs[i]+=v); (s.rtc||[]).forEach((v,i)=>rc[i]+=v);
+    (s.cc||[]).forEach((v,i)=>cc[i]+=v);  (s.wc||[]).forEach((v,i)=>wc[i]+=v);
+    (s.rtcs||[]).forEach((v,i)=>rcs[i]+=v); (s.rtcc||[]).forEach((v,i)=>rcc[i]+=v);
+  });
+
+  // Session trend text
+  const disp=sessions.slice(-20);
+  const trendRows=disp.length?disp.map(s=>{
+    const t=s.correct+s.wrong, acc=t>0?Math.round(s.correct/t*100):0;
+    const d=new Date(s.ts);
+    const bar='█'.repeat(Math.round(acc/5))+'░'.repeat(20-Math.round(acc/5));
+    return `${d.toLocaleDateString().padEnd(11)} ${String(acc).padStart(3)}%  ${bar}  ✓${s.correct} ✗${s.wrong}`;
+  }).join('\n'):'No sessions in this period';
+
+  const pColor=(acc,t)=>t===0?'#999':acc>=70?'#2e7d32':acc>=50?'#e65100':'#c62828';
+  const rtStyle=(ms)=>ms===0?'#999':ms<2500?'#2e7d32':ms<5000?'#e65100':'#c62828';
+
+  const digitRows=Array.from({length:10},(_,i)=>{
+    const t=cn[i]+wn[i], acc=t>0?Math.round(cn[i]/t*100):0;
+    const avgRt=rc[i]>0?Math.round(rs[i]/rc[i]):0;
+    return `<tr><td style="text-align:center;font-weight:700">${i}</td>
+      <td style="text-align:center">${cn[i]}</td><td style="text-align:center">${wn[i]}</td>
+      <td style="text-align:center;font-weight:700;color:${pColor(acc,t)}">${t>0?acc+'%':'—'}</td>
+      <td style="text-align:center;color:${rtStyle(avgRt)}">${avgRt>0?(avgRt/1000).toFixed(1)+'s':'—'}</td></tr>`;
+  }).join('');
+
+  const CNAMES=['Red','Yellow','Orange','Green'];
+  const colorRows=CNAMES.map((nm,i)=>{
+    const t=cc[i]+wc[i], acc=t>0?Math.round(cc[i]/t*100):0;
+    const avgRt=rcc[i]>0?Math.round(rcs[i]/rcc[i]):0;
+    return `<tr><td style="font-weight:700">${nm}</td>
+      <td style="text-align:center">${cc[i]}</td><td style="text-align:center">${wc[i]}</td>
+      <td style="text-align:center;font-weight:700;color:${pColor(acc,t)}">${t>0?acc+'%':'—'}</td>
+      <td style="text-align:center;color:${rtStyle(avgRt)}">${avgRt>0?(avgRt/1000).toFixed(1)+'s':'—'}</td></tr>`;
+  }).join('');
+
+  const weakItems=[];
+  for(let i=0;i<=9;i++){ const t=cn[i]+wn[i]; if(t>=3&&cn[i]/t<0.7) weakItems.push(`Number ${i} (${Math.round(cn[i]/t*100)}% accuracy)`); }
+  CNAMES.forEach((nm,i)=>{ const t=cc[i]+wc[i]; if(t>=3&&cc[i]/t<0.7) weakItems.push(`${nm} colour (${Math.round(cc[i]/t*100)}% accuracy)`); });
+  for(let i=0;i<=9;i++){ if(rc[i]>=3&&rs[i]/rc[i]>5000) weakItems.push(`Number ${i} response time (avg ${(rs[i]/rc[i]/1000).toFixed(1)}s)`); }
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>LearnBuddy Progress — ${player}</title>
+<style>
+body{font-family:'Segoe UI',Arial,sans-serif;padding:24px 32px;max-width:720px;margin:0 auto;color:#111;font-size:13px}
+h1{color:#7c6af4;font-size:1.4rem;margin-bottom:4px}
+h2{color:#333;font-size:.95rem;margin:20px 0 8px;border-bottom:2px solid #7c6af4;padding-bottom:4px}
+.meta{color:#555;font-size:.82rem;margin-bottom:16px}
+.summary{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.sum-card{background:#f5f3ff;border-radius:8px;padding:10px 16px;text-align:center;min-width:90px}
+.sum-val{font-size:1.5rem;font-weight:800;color:#7c6af4}.sum-lbl{font-size:.68rem;color:#666;text-transform:uppercase}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:6px}
+th{background:#7c6af4;color:#fff;padding:6px 10px;text-align:left;font-size:.8rem}
+td{padding:5px 10px;border-bottom:1px solid #eee}
+tr:nth-child(even) td{background:#fafafa}
+.trend{font-family:'Courier New',monospace;font-size:.72rem;white-space:pre;background:#f5f5f5;padding:10px 14px;border-radius:6px;line-height:1.7}
+.weak{background:#fff5f5;border-left:3px solid #c62828;padding:6px 12px;margin:4px 0;border-radius:0 6px 6px 0;font-size:.84rem}
+.ok{color:#2e7d32;font-style:italic;padding:6px 0;font-size:.84rem}
+.footer{color:#bbb;font-size:.7rem;text-align:center;margin-top:24px}
+@media print{.no-print{display:none}}
+</style></head><body>
+<h1>LearnBuddy — Progress Report</h1>
+<div class="meta">
+  <strong>Student:</strong> ${player} &nbsp;&nbsp;
+  <strong>Period:</strong> ${periodStr} &nbsp;&nbsp;
+  <strong>Sessions:</strong> ${sessions.length} &nbsp;&nbsp;
+  <strong>Generated:</strong> ${now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}
+</div>
+<div class="summary">
+  <div class="sum-card"><div class="sum-val">${overallAcc}%</div><div class="sum-lbl">Accuracy</div></div>
+  <div class="sum-card"><div class="sum-val">${totalC}</div><div class="sum-lbl">Correct</div></div>
+  <div class="sum-card"><div class="sum-val">${totalW}</div><div class="sum-lbl">Wrong</div></div>
+  <div class="sum-card"><div class="sum-val">${sessions.length}</div><div class="sum-lbl">Sessions</div></div>
+</div>
+<h2>Session Trend (last ${Math.min(sessions.length,20)})</h2>
+<div class="trend">${trendRows}</div>
+<h2>By Number — Game 1</h2>
+<table><tr><th>Digit</th><th>Correct</th><th>Wrong</th><th>Accuracy</th><th>Avg Response</th></tr>${digitRows}</table>
+<h2>By Colour</h2>
+<table><tr><th>Colour</th><th>Correct</th><th>Wrong</th><th>Accuracy</th><th>Avg Response</th></tr>${colorRows}</table>
+<h2>Areas Needing Practice</h2>
+${weakItems.length?weakItems.map(i=>`<div class="weak">• ${i}</div>`).join(''):'<div class="ok">No weak spots identified — keep it up!</div>'}
+<div class="footer">LearnBuddy Teacher Control &nbsp;|&nbsp; ${now.toLocaleString()}</div>
+<script>window.onload=()=>window.print()<\/script>
+</body></html>`;
+}
+
+// ── Poll scores as fallback ───────────────────────────────────────────────────
+setInterval(async ()=>{
+  if(!server?.connected || $('stopBtn').disabled) return;
+  try{ updateScores(JSON.parse(dec(await charScr.readValue()))); }catch(_){}
+}, 3000);
+</script>
+</body>
+</html>
