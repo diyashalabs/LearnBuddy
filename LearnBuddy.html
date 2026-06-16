@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LearnBuddy — Teacher Control</title>
+<title>LearnBuddy</title>
 <style>
 :root {
   --bg:#0f1117; --surface:#1c1f2e; --card:#252836; --border:#363a4f;
@@ -1324,7 +1324,7 @@ tr:nth-child(even) td{background:#fafafa}
 <table><tr><th>Colour</th><th>Correct</th><th>Wrong</th><th>Accuracy</th><th>Avg Response</th></tr>${colorRows}</table>
 <h2>Areas Needing Practice</h2>
 ${weakItems.length?weakItems.map(i=>`<div class="weak">• ${i}</div>`).join(''):'<div class="ok">No weak spots identified — keep it up!</div>'}
-<div class="footer">LearnBuddy Teacher Control &nbsp;|&nbsp; ${now.toLocaleString()}</div>
+<div class="footer">LearnBuddy &nbsp;|&nbsp; ${now.toLocaleString()}</div>
 <script>window.onload=()=>window.print()<\/script>
 </body></html>`;
 }
