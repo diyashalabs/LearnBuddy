@@ -1,7 +1,7 @@
 # LearnBuddy – Schematic Overview
 
-> ESP32-WROOM-32 (38-pin DevKit) · 4×4 Matrix Keypad · WS2812B LED Ring · Capacitive Touch  
-> Firmware: ESP-IDF v5.5.2 · FreeRTOS · Bluedroid BLE · No Arduino
+> ESP32-WROOM-32 (38-pin DevKit) · 4×4 Matrix Keypad · WS2812B LED Ring · Capacitive Touch · TM1637 7-Segment · 2× IR Reflective Sensor  
+> Firmware: ESP-IDF v5.5.2 · FreeRTOS · Bluedroid BLE · No Arduino · Pin config via `board.h`
 
 ---
 
@@ -26,14 +26,21 @@
  │ WS2812B Ring │◄──│                                             │    (16 LEDs)
  │  16 NeoPixels│   │  GPIO4  T0  ──┐                            │
  │  5V / GND    │   │  GPIO15 T3  ──┤  Capacitive Touch          │
- └──────────────┘   │  GPIO13 T4  ──┤  (diagnostic log only)     │
-                    │  GPIO12 T5  ──┤                             │
- ┌──────────────┐   │  GPIO14 T6  ──┤                             │
- │  Cap Touch   │───│  GPIO27 T7  ──┤                             │
- │  8 pads      │   │  GPIO33 T8  ──┤                             │
- │  (bare wire) │   │  GPIO32 T9  ──┘                             │
- └──────────────┘   │                                             │
-                    │  BLE GATT  LearnBuddy_XXXXXX               │
+ └──────────────┘   │  GPIO13 T4  ──┤  (TOUCH_PIN_COUNT=4,       │
+                    │  GPIO12 T5  ──┘   diagnostic log only)     │
+ ┌──────────────┐   │                                             │
+ │  Cap Touch   │───│  (GPIO32 free — touch pad 9 never enabled) │
+ │  4 pads      │   │                                             │
+ │  (bare wire) │   │  GPIO27 CLK  ──┐                           │
+ └──────────────┘   │  GPIO14 DIO  ──┤  TM1637 (bit-banged,      │──► TM1637
+ ┌──────────────┐   │                  open-drain DIO/ACK)       │    4-digit
+ │  TM1637      │◄──│                                             │    7-segment
+ │  7-Segment   │   │  GPIO16  ──────────────────────────────────│──► IR Sensor 1
+ └──────────────┘   │  GPIO33  ──────────────────────────────────│──► IR Sensor 2
+ ┌──────────────┐   │          INPUT + PULLUP, 60 ms debounce    │
+ │ IR Sensor 1  │───│          triggers game_handle_key()        │
+ │ IR Sensor 2  │   │                                             │
+ └──────────────┘   │  BLE GATT  LearnBuddy_XXXXXX               │
                     │  SoftAP    192.168.4.1                      │
                     └─────────────────────────────────────────────┘
                                │BLE                │WiFi
@@ -96,13 +103,43 @@ ROW3(22)   SPC        0         .         G  (Green)
 | Touch3   | 15   | Touch pad   |
 | Touch4   | 13   | Touch pad   |
 | Touch5   | 12   | Touch pad   |
-| Touch6   | 14   | Touch pad   |
-| Touch7   | 27   | Touch pad   |
-| Touch8   | 33   | Touch pad   |
-| Touch9   | 32   | Touch pad   |
 
-> All 8 pads log to serial monitor only (`touch_test.c`). Not wired to game logic yet.  
+> Pad count is set by `#define TOUCH_PIN_COUNT` in `touch_test.h` (0–4). Pins are
+> enabled in priority order GPIO4 → GPIO15 → GPIO13 → GPIO12; current build uses
+> all 4. All enabled pads log to serial monitor only (`touch_test.c`) — not wired
+> to game logic yet.  
+> GPIO14, GPIO27, GPIO33, GPIO32 (Touch6/7/8/9) are **no longer touch-capable**
+> in this build: GPIO14/27 are reassigned to TM1637 (§2.6); GPIO33 is reassigned
+> to IR Sensor 2 (§2.7); GPIO32 sits free as plain GPIO.  
 > GPIO0 (T1) and GPIO2 (T2) skipped — boot-strap pins.
+
+### 2.6 TM1637 – 4-Digit 7-Segment Display
+
+| Signal | GPIO | Direction         | Notes                                  |
+|--------|------|--------------------|-----------------------------------------|
+| CLK    | 27   | OUTPUT (push-pull) | Master-driven only, never read back     |
+| DIO    | 14   | INPUT_OUTPUT_OD    | Open-drain + internal pull-up; read back for ACK |
+
+> Bit-banged 2-wire protocol (`tm1637.c`), similar to I2C but with its own
+> START/STOP/ACK framing. DIO **must** use `GPIO_MODE_INPUT_OUTPUT_OD` (not
+> `GPIO_MODE_OUTPUT_OD`) — the latter never enables the ESP32 input buffer, so
+> ACK reads silently always return true regardless of actual wiring.  
+> Used in Game 1 as a "wait for correct answer" indicator: a 4-digit snake
+> spinner animation (`tm1637_spinner_step`) runs continuously, hiding the
+> target number until the correct key is pressed.
+
+### 2.7 IR Reflective Sensors
+
+| Sensor | GPIO | Direction      | Key sent | Notes                          |
+|--------|------|----------------|----------|--------------------------------|
+| IR 1   | 16   | INPUT (PULLUP) | `SPC`    | Enter / cycle game selection   |
+| IR 2   | 33   | INPUT (PULLUP) | `.`      | Confirm game start             |
+
+> Module output is active-LOW (LOW = object detected). ESP32 internal pull-up keeps
+> the line HIGH when idle. Debounce: 3 consecutive LOW reads at 20 ms = 60 ms.
+> Fires once per detection; re-arms only after object is removed (HIGH restored).  
+> Key mapping is configurable via `IR_SENSOR_1_KEY` / `IR_SENSOR_2_KEY` in `board.h`.  
+> All GPIO pin numbers are defined in `board.h` — change target board there, not here.
 
 ### 2.4 Wi-Fi / Web Server
 
@@ -137,11 +174,15 @@ ROW3(22)   SPC        0         .         G  (Green)
 
 | GPIO | Notes |
 |------|-------|
-| 16   | General purpose output |
+| 32   | Free — touch pad 9 never enabled (`TOUCH_PIN_COUNT` caps at 4) |
 | 1, 3 | TX/RX — free if serial monitor not needed |
 | 34, 35 | Input only, no internal pull-up |
 | 36, 39 | Input only, no internal pull-up |
 | 6–11 | **DO NOT USE** — internal SPI flash |
+
+> GPIO14 and GPIO27 are used by TM1637 (§2.6).  
+> GPIO16 and GPIO33 are used by IR sensors (§2.7).  
+> All assignments are defined in `board.h`.
 
 ---
 
@@ -223,12 +264,16 @@ main.c
   ├── keypad.c            (keypad_init → FreeRTOS task)
   │     └── game_logic.c  (game_handle_key)
   ├── touch_test.c        (touch_test_init → FreeRTOS task, serial log only)
+  ├── tm1637.c            (tm1637_init — CLK/DIO bit-bang setup)
+  ├── ir_sensor.c         (ir_sensor_init → FreeRTOS task, calls game_handle_key)
   └── game_logic.c        (game_logic_init)
         ├── game_config.c       (NVS read/write)
         ├── game_analytics.c    (NVS read/write, flush at session end)
         ├── session_tracker.c   (in-RAM counters)
         ├── game_registry.c     (game metadata)
-        └── led_ring.c          (all LED primitives)
+        ├── led_ring.c          (all LED primitives)
+        └── tm1637.c            (g1_anim_task spinner via tm1637_spinner_step,
+                                  tm1637_display_number on correct answer)
 ```
 
 ---
@@ -244,12 +289,12 @@ main.c
     IO1 / TXD0 ───┤4           4├─── IO39 / VN  (input-only)
     IO3 / RXD0 ───┤5           5├─── IO34        (input-only)
    IO21 ◄ ROW2 ───┤6           6├─── IO35        (input-only)
-           GND ───┤7           7├─── IO32 ◄ T9
-   IO19 ◄ COL1 ───┤8           8├─── IO33 ◄ T8
+           GND ───┤7           7├─── IO32        (free)
+   IO19 ◄ COL1 ───┤8           8├─── IO33 ◄ IR2
    IO18 ◄ DATA ───┤9           9├─── IO25 ◄ ROW1
     IO5 ◄ COL2 ───┤10         10├─── IO26 ◄ ROW0
-   IO17 ◄ COL3 ───┤11         11├─── IO27 ◄ T7
-          IO16 ───┤12         12├─── IO14 ◄ T6
+   IO17 ◄ COL3 ───┤11         11├─── IO27 ◄ TM1637 CLK
+   IO16 ◄ IR1 ───┤12         12├─── IO14 ◄ TM1637 DIO
      IO4 ◄ T0  ───┤13         13├─── IO12 ◄ T5
      IO0 ⚠ T1  ───┤14         14├─── IO13 ◄ T4
      IO2 ⚠ T2  ───┤15         15├─── SD3 / IO10  ⚠FLASH
@@ -260,7 +305,7 @@ main.c
                     │             │
                     └────[USB]────┘
 
-◄ = used by LearnBuddy firmware
+◄ = used by LearnBuddy firmware   (IR1 = IR Sensor 1, IR2 = IR Sensor 2)
 ⚠ = caution (boot-strap or flash-interface pin)
 ⚠FLASH = connected to internal SPI flash — DO NOT USE
 ```
@@ -274,6 +319,8 @@ main.c
 | 1   | ESP32-WROOM-32 DevKit | 38-pin                                  |
 | 1   | 4×4 Matrix Keypad   | Passive membrane, 8-pin connector         |
 | 1   | WS2812B LED Ring    | 16 LEDs, 5 V                             |
+| 1   | TM1637 7-Segment Module | 4-digit, 2-wire CLK/DIO              |
+| 2   | IR Reflective Sensor    | TCRT5000 or similar, digital output  |
 | 1   | 300–500 Ω resistor  | Series on WS2812B DIN line               |
 | 1   | 100 µF electrolytic | Decoupling across LED ring 5V/GND        |
 | 1   | 5 V USB supply      | ≥ 2 A for LED ring                       |
