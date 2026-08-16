@@ -216,6 +216,18 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--ac
     <div class="game-grid" id="gameGrid"><div style="color:var(--muted);font-size:.85rem">Loading…</div></div>
   </div>
 
+  <!-- App games (always available, no ESP32 required) -->
+  <div class="section">
+    <h2>App Games</h2>
+    <div class="game-grid">
+      <div class="game-card" id="explorerCard" onclick="openExplorerGame()">
+        <div class="gname">🌿 Explorer Run</div>
+        <div class="gdesc">Run and jump through 3 worlds with IR sensors</div>
+        <span class="badge" style="background:#5bc8af;color:#0f1117">Always On</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Settings (tabs per game) -->
   <div class="section">
     <h2>Game Settings</h2>
@@ -604,10 +616,18 @@ function onDisconnected(){
 }
 
 // ── IR sensor handler (shared by BLE + WebSocket) ────────────────────────────
+let _explorerWin = null;
 function handleIR(sensor, value) {
   log(`IR Sensor ${sensor}: ${value===0?'▼ detected':'▲ clear'}`, value===0?'warn':'info');
-  // Games hook into this — emit a custom event that game modules can listen to
   document.dispatchEvent(new CustomEvent('lb:ir', { detail: { sensor, value } }));
+  // relay to Explorer Run if open
+  if (_explorerWin && !_explorerWin.closed)
+    _explorerWin.postMessage({type:'ir', s:sensor, v:value}, '*');
+}
+function openExplorerGame() {
+  _explorerWin = window.open('games/explorer_run.html', 'explorer_run',
+    'width=1024,height=660,resizable=yes,scrollbars=no');
+  if (_explorerWin) _explorerWin.focus();
 }
 
 // ── Send hardware command (LED / display) via active transport ────────────────
