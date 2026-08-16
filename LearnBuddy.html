@@ -230,6 +230,11 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--ac
         <div class="gdesc">Roll the belan back and forth to make rotis before time runs out</div>
         <span class="badge" style="background:#ff9f4d;color:#3d1200">Always On</span>
       </div>
+      <div class="game-card" id="danceCard" onclick="openDanceGame()">
+        <div class="gname">💃 Dance Dance</div>
+        <div class="gdesc">Wave both hands to keep the dancer grooving — score how long you dance!</div>
+        <span class="badge" style="background:#c030d0;color:#fff">Always On</span>
+      </div>
     </div>
   </div>
 
@@ -630,6 +635,8 @@ function handleIR(sensor, value) {
     _explorerWin.postMessage({type:'ir', s:sensor, v:value}, '*');
   if (_rotiWin && !_rotiWin.closed)
     _rotiWin.postMessage({type:'ir', s:sensor, v:value}, '*');
+  if (_danceWin && !_danceWin.closed)
+    _danceWin.postMessage({type:'ir', s:sensor, v:value}, '*');
 }
 function openExplorerGame() {
   _explorerWin = window.open('games/explorer_run.html', 'explorer_run',
@@ -641,6 +648,12 @@ function openRotiGame() {
   _rotiWin = window.open('games/roti_maker.html', 'roti_maker',
     'width=900,height=620,resizable=yes,scrollbars=no');
   if (_rotiWin) _rotiWin.focus();
+}
+let _danceWin = null;
+function openDanceGame() {
+  _danceWin = window.open('games/dance_dance.html', 'dance_dance',
+    'width=960,height=660,resizable=yes,scrollbars=no');
+  if (_danceWin) _danceWin.focus();
 }
 
 // ── Send hardware command (LED / display) via active transport ────────────────

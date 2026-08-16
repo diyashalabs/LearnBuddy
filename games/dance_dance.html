@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Dance Dance</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d0020;color:#fff;
+         overflow:hidden;width:100vw;height:100vh;}
+
+    /* ── full-screen video ── */
+    #danceVid{
+      position:fixed;top:0;left:0;width:100%;height:100%;
+      object-fit:cover;z-index:0;background:#000;
+    }
+
+    /* ── top HUD ── */
+    #hud{
+      position:fixed;top:0;left:0;right:0;z-index:20;
+      background:linear-gradient(to bottom,rgba(0,0,0,0.72) 0%,transparent 100%);
+      padding:10px 20px 28px;
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+    }
+    #hud.hidden{display:none}
+    .hud-timer{font-size:1.5rem;font-weight:800;letter-spacing:.04em;
+      text-shadow:0 0 12px rgba(200,100,255,.9);}
+    .hud-name{font-size:.85rem;color:rgba(255,255,255,.65);margin-top:1px;}
+    .sensor-dots{display:flex;align-items:center;gap:6px;}
+    .s-label{font-size:.68rem;color:rgba(255,255,255,.4);font-weight:600;}
+    .sdot{width:14px;height:14px;border-radius:50%;
+          background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.3);
+          transition:background .08s,box-shadow .08s;}
+    .sdot.active{background:#7fffaa;box-shadow:0 0 8px #50ff80;}
+
+    /* ── pause overlay ── */
+    #pauseOverlay{
+      position:fixed;top:0;left:0;right:0;bottom:0;z-index:15;
+      background:rgba(5,0,20,.62);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      text-align:center;gap:6px;
+    }
+    #pauseOverlay.hidden{display:none}
+    .p-emoji{font-size:5rem;line-height:1;
+      animation:bob .65s ease-in-out infinite alternate;}
+    .p-title{font-size:2.2rem;font-weight:900;margin-top:8px;
+      background:linear-gradient(135deg,#ff80f0,#80c8ff,#ffe060);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+    .p-hint{font-size:.95rem;color:rgba(255,255,255,.65);margin-bottom:10px;}
+    .cd-wrap{width:240px;height:10px;background:rgba(255,255,255,.15);
+             border-radius:5px;overflow:hidden;}
+    .cd-bar{height:100%;width:100%;border-radius:5px;
+            background:linear-gradient(to right,#ff4040,#ff9030);
+            transition:width .12s linear,background .4s;}
+    @keyframes bob{from{transform:translateY(0) scale(1)}
+                   to  {transform:translateY(-14px) scale(1.1)}}
+
+    /* ── overlays (connect / setup / result) ── */
+    .overlay{
+      position:fixed;top:0;left:0;right:0;bottom:0;z-index:30;
+      display:flex;align-items:center;justify-content:center;
+      background:radial-gradient(ellipse at 50% 30%,#2a0050 0%,#0d0020 70%);
+    }
+    .overlay.dim{background:rgba(5,0,20,.88);}
+    .overlay.hidden{display:none}
+    .card{
+      background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.12);
+      border-radius:22px;padding:36px 38px;max-width:400px;width:90%;
+      text-align:center;backdrop-filter:blur(14px);
+    }
+    .g-title{font-size:2rem;font-weight:900;
+      background:linear-gradient(135deg,#ff80f0,#80c8ff,#ffe060);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+    .sub{font-size:.88rem;color:rgba(255,255,255,.5);}
+    .txt-input{
+      width:100%;padding:10px 14px;font-size:1rem;font-family:inherit;
+      background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.22);
+      border-radius:12px;color:#fff;outline:none;text-align:center;margin-bottom:4px;
+    }
+    .txt-input::placeholder{color:rgba(255,255,255,.35);}
+    .opt-label{font-size:.75rem;font-weight:700;color:rgba(255,255,255,.45);
+      text-transform:uppercase;letter-spacing:.08em;margin:14px 0 8px;}
+    .opt-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+    .btn{display:inline-block;padding:10px 22px;border:none;border-radius:12px;
+      font-size:.95rem;font-weight:700;cursor:pointer;font-family:inherit;
+      transition:opacity .15s,transform .1s;}
+    .btn:active{opacity:.8;transform:scale(.97);}
+    .btn       {background:#6a30c0;color:#fff;}
+    .btn.blue  {background:#2860d8;color:#fff;}
+    .btn.green {background:#208850;color:#fff;}
+    .btn.big   {font-size:1.15rem;padding:14px 32px;border-radius:16px;
+      background:linear-gradient(135deg,#c030d0,#4050d8);
+      box-shadow:0 4px 20px rgba(180,80,255,.4);}
+    .btn.sm    {padding:7px 14px;font-size:.83rem;border-radius:10px;}
+    .btn.sel   {outline:2px solid #fff;outline-offset:2px;}
+    .btn[disabled]{opacity:.38;cursor:not-allowed;}
+    .stat-big{font-size:3.8rem;font-weight:900;
+      background:linear-gradient(135deg,#ffe060,#ff80b0);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+    #conStatus{color:rgba(255,255,255,.5);font-size:.83rem;min-height:1.3em;margin-top:8px;}
+  </style>
+</head>
+<body>
+
+<!-- Full-screen video -->
+<video id="danceVid" loop playsinline></video>
+
+<!-- watermark cover (top-right corner) -->
+<div style="position:fixed;top:0;right:0;width:360px;height:60px;
+            background:#1a1a1a;z-index:1;pointer-events:none"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div>
+    <div class="hud-timer" id="hudTimer">⏱ 0:00</div>
+    <div class="hud-name"  id="hudName">Dancer</div>
+  </div>
+  <div class="sensor-dots">
+    <span class="s-label">S1</span>
+    <div class="sdot" id="s1dot"></div>
+    <div class="sdot" id="s2dot"></div>
+    <span class="s-label">S2</span>
+  </div>
+</div>
+
+<!-- Pause overlay (shown while game running but not dancing) -->
+<div id="pauseOverlay" class="hidden">
+  <div class="p-emoji">🕺</div>
+  <div class="p-title">Dance Buddy!</div>
+  <div class="p-hint">Wave both hands to keep dancing! 🙌</div>
+  <div class="cd-wrap"><div class="cd-bar" id="cdBar"></div></div>
+</div>
+
+<!-- CONNECT -->
+<div id="scr-connect" class="overlay">
+  <div class="card">
+    <div class="g-title">💃 Dance Dance</div>
+    <p class="sub" style="margin:8px 0 22px">Connect your LearnBuddy board</p>
+    <div style="display:flex;flex-direction:column;gap:10px;max-width:220px;margin:0 auto">
+      <button id="bleBtn" class="btn">Bluetooth 📶</button>
+      <button id="wsBtn"  class="btn blue">Wi-Fi 🌐</button>
+      <button id="kbBtn"  class="btn green">Keyboard ⌨️</button>
+    </div>
+    <p id="conStatus"></p>
+  </div>
+</div>
+
+<!-- SETUP -->
+<div id="scr-setup" class="overlay hidden">
+  <div class="card">
+    <div class="g-title">💃 Dance Dance</div>
+    <p class="sub" style="margin:8px 0 18px">Who's dancing today? 🎶</p>
+    <input class="txt-input" id="dancerName" type="text" maxlength="14"
+           placeholder="Little Dancer" autocomplete="off">
+
+    <div class="opt-label">Choose Dancer</div>
+    <div class="opt-row" id="charBtns"></div>
+
+    <p class="sub" style="margin-top:16px;font-size:.78rem">
+      Wave <strong>both hands</strong> over S1 &amp; S2 to dance!
+    </p>
+    <button id="startBtn" class="btn big" style="margin-top:18px">Let's Dance! 🕺</button>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div id="scr-result" class="overlay dim hidden">
+  <div class="card">
+    <div class="g-title" id="resTitle">Game Over! 🎉</div>
+    <div class="stat-big" id="resTime">0:00</div>
+    <p style="font-size:1rem;color:rgba(255,255,255,.7);margin-bottom:4px" id="resStar"></p>
+    <p style="font-size:.85rem;color:rgba(255,255,255,.5)"  id="resSub"></p>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:22px">
+      <button id="resAgainBtn" class="btn green">Dance Again 🔁</button>
+      <button id="resHomeBtn"  class="btn blue">Home 🏠</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ====================================================================
+   DANCE DANCE — LearnBuddy game
+   Wave both hands (S1 + S2 pulsing) → video plays, timer counts up.
+   Stop waving for 10 s → game over. Score = total dance seconds.
+   ==================================================================== */
+
+const $   = id => document.getElementById(id);
+const fmtT = s  => { const m=Math.floor(s/60),ss=Math.floor(s%60); return `${m}:${String(ss).padStart(2,'0')}`; };
+const clamp= (v,lo,hi) => v<lo?lo:v>hi?hi:v;
+
+/* ── video sources ───────────────────────────────────────────────── */
+const VIDEO_SRCS = {
+  boy : 'boy_dance.mp4',
+  girl: 'girl_dance.mp4',   // placeholder — add girl_dance.mp4 to enable
+};
+
+/* ── constants ───────────────────────────────────────────────────── */
+const PULSE_WINDOW = 900;   // ms both sensors must have fired recently
+const PAUSE_LIMIT  = 10;    // seconds of no-dance → game over
+
+/* ── IR input ─────────────────────────────────────────────────────── */
+class DanceIR {
+  constructor(){
+    this._pulse   = [-Infinity, -Infinity];
+    this._blocked = [false, false];
+    window.addEventListener('message',   e => { if(e.data?.type==='ir') this._onIR(e.data.s, e.data.v); });
+    document.addEventListener('lb:ir',   e => { const d=e.detail; this._onIR(d.s??d.sensor, d.v??d.value); });
+    window.addEventListener('keydown',   e => this._onKey(e));
+  }
+  _onIR(s, v){
+    const i=s-1, blocked=(v===0);
+    if(!blocked && this._blocked[i]) this._pulse[i]=performance.now(); // falling edge = pulse
+    this._blocked[i]=blocked;
+    const dot=$(`s${s}dot`);
+    if(dot) dot.classList.toggle('active', blocked);
+  }
+  _onKey(e){
+    // keyboard simulation for testing without hardware
+    const k=e.key.toLowerCase();
+    if(['arrowleft','a'].includes(k))  this._pulse[0]=performance.now();
+    if(['arrowright','d'].includes(k)) this._pulse[1]=performance.now();
+  }
+  get isDancing(){
+    const n=performance.now();
+    return (n-this._pulse[0] < PULSE_WINDOW) && (n-this._pulse[1] < PULSE_WINDOW);
+  }
+  reset(){
+    this._pulse=[-Infinity,-Infinity];
+    this._blocked=[false,false];
+  }
+}
+
+/* ── audio ───────────────────────────────────────────────────────── */
+class AudioManager{
+  constructor(){ this._ctx=null; }
+  ensureCtx(){
+    try{
+      if(!this._ctx) this._ctx=new(window.AudioContext||window.webkitAudioContext)();
+      if(this._ctx.state==='suspended') this._ctx.resume();
+    }catch(_){}
+  }
+  _tone(freq,dur,type='sine',vol=0.28){
+    if(!this._ctx) return;
+    try{
+      const c=this._ctx, g=c.createGain(), o=c.createOscillator();
+      o.type=type; o.frequency.value=freq;
+      g.gain.setValueAtTime(0,c.currentTime);
+      g.gain.linearRampToValueAtTime(vol,c.currentTime+0.01);
+      g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+dur);
+      o.connect(g); g.connect(c.destination);
+      o.start(); o.stop(c.currentTime+dur+0.06);
+    }catch(_){}
+  }
+  playClick(){ this._tone(800,.07); }
+  playStart(){ this._tone(440,.1); setTimeout(()=>this._tone(660,.15),130); }
+  playGameOver(){ this._tone(260,.4,'sawtooth',.22); }
+}
+
+/* ── game ─────────────────────────────────────────────────────────── */
+class DanceGame{
+  constructor(video, ir, audio, cfg){
+    this.video=video; this.ir=ir; this.audio=audio;
+    this.playerName=cfg.playerName;
+    this.isBoy=cfg.isBoy;
+
+    this.danceTime=0;   // total accumulated dance seconds
+    this.pauseTime=0;   // current consecutive pause seconds
+    this.dancing=false;
+    this.running=true;
+    this.lastFrame=performance.now();
+
+    // load correct video; if girl is unavailable, silently fall back to boy
+    this._loadVideo(cfg.isBoy?'boy':'girl');
+
+    $('hudName').textContent='💃 '+this.playerName;
+    $('hud').classList.remove('hidden');
+    $('pauseOverlay').classList.remove('hidden');  // start in pause state
+    this._updateHUD();
+
+    this._loopBound=this._loop.bind(this);
+    requestAnimationFrame(this._loopBound);
+  }
+
+  _loadVideo(char){
+    const vid=this.video;
+    vid.src=VIDEO_SRCS[char]||VIDEO_SRCS.boy;
+    vid.onerror=()=>{
+      if(char!=='boy'){ vid.onerror=null; vid.src=VIDEO_SRCS.boy; vid.load(); }
+    };
+    vid.load();
+    // prime playback permission inside constructor (called from click handler chain)
+    vid.play().then(()=>vid.pause()).catch(()=>{});
+  }
+
+  _loop(now){
+    if(!this.running) return;
+    const dt=Math.min((now-this.lastFrame)/1000, 0.1);
+    this.lastFrame=now;
+    this._update(dt);
+    requestAnimationFrame(this._loopBound);
+  }
+
+  _update(dt){
+    const wasDancing=this.dancing;
+    this.dancing=this.ir.isDancing;
+
+    if(this.dancing){
+      if(!wasDancing){
+        this.video.play().catch(()=>{});
+        $('pauseOverlay').classList.add('hidden');
+      }
+      this.danceTime+=dt;
+      this.pauseTime=0;
+      $('cdBar').style.width='100%';
+    } else {
+      if(wasDancing){
+        this.video.pause();
+        $('pauseOverlay').classList.remove('hidden');
+      }
+      this.pauseTime+=dt;
+      if(this.pauseTime>=PAUSE_LIMIT){ this._end(); return; }
+      // countdown bar
+      const pct=clamp(1-this.pauseTime/PAUSE_LIMIT,0,1)*100;
+      $('cdBar').style.width=pct+'%';
+      $('cdBar').style.background=
+        this.pauseTime>7 ? '#ff2020' : 'linear-gradient(to right,#ff4040,#ff9030)';
+    }
+    this._updateHUD();
+  }
+
+  _updateHUD(){
+    $('hudTimer').textContent='⏱ '+fmtT(this.danceTime);
+  }
+
+  _end(){
+    this.running=false;
+    this.video.pause();
+    $('hud').classList.add('hidden');
+    $('pauseOverlay').classList.add('hidden');
+    this.audio.playGameOver();
+    window.__ui?.showResult(this);
+  }
+
+  destroy(){
+    this.running=false;
+    this.video.pause();
+    this.ir.reset();
+  }
+}
+
+/* ── UI manager ───────────────────────────────────────────────────── */
+class UIManager{
+  constructor(audio, ir){
+    this.audio=audio; this.ir=ir; this.game=null;
+    this._selChar='boy';
+    this._buildCharBtns();
+    this._bind();
+  }
+
+  _buildCharBtns(){
+    const row=$('charBtns');
+    const chars=[
+      { id:'boy',  label:'👦 Boy',  avail:true  },
+      { id:'girl', label:'👧 Girl', avail:false },  // enable when girl_dance.mp4 is added
+    ];
+    chars.forEach(c=>{
+      const b=document.createElement('button');
+      b.className='btn sm';
+      b.dataset.char=c.id;
+      b.textContent=c.avail ? c.label : c.label+' (soon)';
+      if(!c.avail) b.disabled=true;
+      b.addEventListener('click',()=>{
+        if(!c.avail) return;
+        this.audio.playClick();
+        this._selChar=c.id;
+        row.querySelectorAll('.btn').forEach(x=>x.classList.toggle('sel',x.dataset.char===c.id));
+      });
+      row.appendChild(b);
+    });
+    row.querySelector('[data-char="boy"]').classList.add('sel');
+  }
+
+  _bind(){
+    $('bleBtn').addEventListener('click', async()=>{
+      this.audio.ensureCtx();
+      const ok=await doConnectBLE(s=>$('conStatus').textContent=s);
+      if(ok) this._goSetup();
+    });
+    $('wsBtn').addEventListener('click', async()=>{
+      this.audio.ensureCtx();
+      const ok=await doConnectWS(s=>$('conStatus').textContent=s);
+      if(ok) this._goSetup();
+    });
+    $('kbBtn').addEventListener('click', ()=>{ this.audio.ensureCtx(); this._goSetup(); });
+    $('startBtn').addEventListener('click', ()=>this._startGame());
+    $('resAgainBtn').addEventListener('click', ()=>{ this.audio.playClick(); $('scr-result').classList.add('hidden'); this._goSetup(); });
+    $('resHomeBtn').addEventListener('click',  ()=>{ this.audio.playClick(); $('scr-result').classList.add('hidden'); this._goSetup(); });
+  }
+
+  _goSetup(){
+    ['scr-connect','scr-result'].forEach(id=>$(id).classList.add('hidden'));
+    $('hud').classList.add('hidden');
+    $('pauseOverlay').classList.add('hidden');
+    $('scr-setup').classList.remove('hidden');
+  }
+
+  _startGame(){
+    this.audio.playClick();
+    const name=$('dancerName').value.trim()||'Little Dancer';
+    $('scr-setup').classList.add('hidden');
+    if(this.game) this.game.destroy();
+    this.ir.reset();
+    this.game=new DanceGame($('danceVid'),this.ir,this.audio,{
+      playerName:name, isBoy:this._selChar==='boy'
+    });
+    this.audio.playStart();
+  }
+
+  showResult(g){
+    const secs=Math.floor(g.danceTime);
+    $('resTime').textContent=fmtT(g.danceTime);
+    $('resTitle').textContent=secs>=60?'Superstar! 🌟':secs>=30?'Great Dancer! 🎉':'Game Over! 🎊';
+    $('resStar').textContent=secs>=60?'⭐⭐⭐':secs>=30?'⭐⭐':'⭐';
+    const msgs=['Keep dancing, you\'re amazing!','Great moves! Keep it up 💪','Incredible energy! 🏆'];
+    $('resSub').textContent=secs>=60?msgs[2]:secs>=30?msgs[1]:msgs[0];
+    $('scr-result').classList.remove('hidden');
+  }
+}
+
+/* ── BLE / WS (mirrors LearnBuddy.html pattern) ─────────────────── */
+const dec=v=>new TextDecoder().decode(v);
+let _bleChar=null, _ws=null;
+
+async function doConnectBLE(onStatus){
+  try{
+    onStatus('Scanning…');
+    const dev=await navigator.bluetooth.requestDevice({
+      filters:[{namePrefix:'LearnBuddy'}],
+      optionalServices:['0000ff00-0000-1000-8000-00805f9b34fb']
+    });
+    onStatus('Connecting…');
+    const srv=await(await dev.gatt.connect()).getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
+    const c=await srv.getCharacteristic('0000ff09-0000-1000-8000-00805f9b34fb');
+    await c.startNotifications();
+    c.addEventListener('characteristicvaluechanged',e=>{
+      try{ const d=JSON.parse(dec(e.target.value)); handleIR(d.s,d.v); }catch(_){}
+    });
+    _bleChar=c; onStatus('Connected ✓'); return true;
+  }catch(e){ onStatus(e.name==='NotFoundError'?'No device found':String(e)); return false; }
+}
+
+async function doConnectWS(onStatus){
+  return new Promise(res=>{
+    const host=location.hostname||'learnbuddy.local';
+    onStatus(`Connecting ws://${host}:81…`);
+    try{
+      _ws=new WebSocket(`ws://${host}:81`);
+      _ws.onopen=()=>{ onStatus('Connected ✓'); res(true); };
+      _ws.onerror=()=>{ onStatus('Cannot connect'); res(false); };
+      _ws.onmessage=e=>{
+        try{ const d=JSON.parse(e.data); if(d.type==='ir') handleIR(d.sensor,d.value); }catch(_){}
+      };
+    }catch(e){ onStatus(String(e)); res(false); }
+  });
+}
+
+function handleIR(s,v){
+  document.dispatchEvent(new CustomEvent('lb:ir',{detail:{sensor:s,value:v}}));
+}
+
+/* ── boot ─────────────────────────────────────────────────────────── */
+const audio=new AudioManager();
+const ir=new DanceIR();
+const ui=new UIManager(audio,ir);
+window.__ui=ui;
+
+// launched from LearnBuddy.html → skip connect screen
+if(window.opener) ui._goSetup();
+</script>
+</body>
+</html>
