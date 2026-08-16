@@ -225,6 +225,11 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--ac
         <div class="gdesc">Run and jump through 3 worlds with IR sensors</div>
         <span class="badge" style="background:#5bc8af;color:#0f1117">Always On</span>
       </div>
+      <div class="game-card" id="rotiCard" onclick="openRotiGame()">
+        <div class="gname">🫓 Roti Maker</div>
+        <div class="gdesc">Roll the belan back and forth to make rotis before time runs out</div>
+        <span class="badge" style="background:#ff9f4d;color:#3d1200">Always On</span>
+      </div>
     </div>
   </div>
 
@@ -623,11 +628,19 @@ function handleIR(sensor, value) {
   // relay to Explorer Run if open
   if (_explorerWin && !_explorerWin.closed)
     _explorerWin.postMessage({type:'ir', s:sensor, v:value}, '*');
+  if (_rotiWin && !_rotiWin.closed)
+    _rotiWin.postMessage({type:'ir', s:sensor, v:value}, '*');
 }
 function openExplorerGame() {
   _explorerWin = window.open('games/explorer_run.html', 'explorer_run',
     'width=1024,height=660,resizable=yes,scrollbars=no');
   if (_explorerWin) _explorerWin.focus();
+}
+let _rotiWin = null;
+function openRotiGame() {
+  _rotiWin = window.open('games/roti_maker.html', 'roti_maker',
+    'width=900,height=620,resizable=yes,scrollbars=no');
+  if (_rotiWin) _rotiWin.focus();
 }
 
 // ── Send hardware command (LED / display) via active transport ────────────────
