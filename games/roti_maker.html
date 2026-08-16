@@ -332,12 +332,7 @@ function drawDough(ctx,cx,cy,progress,flashT){
   ctx.restore();
 }
 
-function drawBelan(ctx,cx,cy,animT,dir,span,hW){
-  // Indian-style belan: thicker middle, smaller cylindrical ends.
-  // Moves vertically: dir=1 → downward (toward S2), dir=-1 → upward (toward S1).
-  const t=easeOut(clamp(animT,0,1));
-  const by=dir>0 ? lerp(cy-span/2,cy+span/2,t) : lerp(cy+span/2,cy-span/2,t);
-
+function drawBelan(ctx,cx,by,hW){
   // belan proportions (horizontal pin, viewed from above)
   const midH=21;   // half-height at widest middle
   const endH=9;    // end cap radius (smaller cylinders at both ends)
@@ -461,19 +456,21 @@ class ChefAnim{
   update(dt){ this.lean*=Math.max(0,1-dt*5); }
 }
 
-function drawChef(ctx,W,H,chef,belanY){
-  const isBoy=chef.isBoy, lean=chef.lean;
-  const cx=W/2;
-
-  // Proportions sized to look realistic alongside the dough
-  const headR=40;
-  const bodyH=96, bodyW=55;
-  const bodyY=Math.round(H*0.32);   // chef sits in upper portion of canvas
+/* shared layout constants used by both chef drawing functions */
+function _chefLayout(H){
+  const headR=40, bodyH=96, bodyW=55;
+  const bodyY=Math.round(H*0.32);
   const shoulderOff=58;
   const shoulderY=bodyY-Math.round(bodyH*0.28);
-  const L1=155, L2=135;   // upper arm, forearm lengths (IK segments)
-  const handSpread=72;    // close to shoulderOff so arm vector is mostly vertical (up-down)
+  const L1=155, L2=135;
+  const endCapX=111;  // belanHW(120) - endH(9): where fist grips the end cap
+  return {headR,bodyH,bodyW,bodyY,shoulderOff,shoulderY,L1,L2,endCapX};
+}
 
+function drawChefBody(ctx,W,H,chef){
+  const isBoy=chef.isBoy, lean=chef.lean;
+  const cx=W/2;
+  const {headR,bodyH,bodyW,bodyY,shoulderOff}=_chefLayout(H);
   const skin =isBoy?'#f0b98a':'#e8a87c';
   const shirt =isBoy?'#5a9ef5':'#f07aba';
   const hair  ='#241408';
@@ -482,7 +479,7 @@ function drawChef(ctx,W,H,chef,belanY){
   ctx.save();
   ctx.translate(cx,bodyY); ctx.rotate(lean); ctx.translate(-cx,-bodyY);
 
-  // --- crossed legs (lower portion may go off-canvas — that's fine) ---
+  // crossed legs
   ctx.fillStyle=pants;
   ctx.beginPath(); ctx.ellipse(cx-22,bodyY+30,32,13,-0.22,0,Math.PI*2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(cx+22,bodyY+37,32,13, 0.22,0,Math.PI*2); ctx.fill();
@@ -490,31 +487,13 @@ function drawChef(ctx,W,H,chef,belanY){
   ctx.beginPath(); ctx.ellipse(cx-46,bodyY+38,16,10,-0.3,0,Math.PI*2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(cx+46,bodyY+45,16,10, 0.3,0,Math.PI*2); ctx.fill();
 
-  // --- torso ---
+  // torso
   ctx.fillStyle=shirt;
   ctx.beginPath(); ctx.ellipse(cx,bodyY,bodyW,bodyH,0,0,Math.PI*2); ctx.fill();
   ctx.fillStyle=skin;
   ctx.beginPath(); ctx.ellipse(cx,bodyY-bodyH+10,11,14,0,0,Math.PI*2); ctx.fill();
 
-  // --- IK arms (drawn before head so head overlaps arms) ---
-  for(const side of [-1,1]){
-    const sx=cx+side*shoulderOff, sy=shoulderY;
-    const tx=cx+side*handSpread,  ty=belanY;
-    const [ex,ey]=computeElbow(sx,sy,tx,ty,L1,L2,side<0);
-
-    ctx.strokeStyle=skin; ctx.lineWidth=16; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.stroke();
-    ctx.lineWidth=13;
-    ctx.beginPath(); ctx.moveTo(ex,ey); ctx.lineTo(tx,ty); ctx.stroke();
-    // elbow definition
-    ctx.fillStyle=`rgba(0,0,0,0.09)`;
-    ctx.beginPath(); ctx.arc(ex,ey,8,0,Math.PI*2); ctx.fill();
-    // hand
-    ctx.fillStyle=skin;
-    ctx.beginPath(); ctx.arc(tx,ty,10,0,Math.PI*2); ctx.fill();
-  }
-
-  // --- head ---
+  // head (no arms here — arms drawn separately on top of chakla/belan)
   const headY=bodyY-bodyH-headR+6;
   ctx.fillStyle=hair;
   ctx.beginPath(); ctx.arc(cx,headY,headR+3,Math.PI,Math.PI*2); ctx.fill();
@@ -536,14 +515,52 @@ function drawChef(ctx,W,H,chef,belanY){
   ctx.fillStyle='rgba(255,255,255,0.85)';
   ctx.beginPath(); ctx.arc(cx-7,eyeY-2,1.8,0,Math.PI*2); ctx.fill();
   ctx.beginPath(); ctx.arc(cx+11,eyeY-2,1.8,0,Math.PI*2); ctx.fill();
-
   ctx.strokeStyle=hair; ctx.lineWidth=3; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(cx-14,eyeY-8); ctx.lineTo(cx-5,eyeY-10); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(cx+14,eyeY-8); ctx.lineTo(cx+5,eyeY-10); ctx.stroke();
-
   ctx.strokeStyle='#7a3010'; ctx.lineWidth=2.5; ctx.lineCap='round';
   ctx.beginPath(); ctx.arc(cx,headY+9,7,0.2,Math.PI-0.2); ctx.stroke();
 
+  ctx.restore();
+}
+
+function drawChefArms(ctx,W,H,belanY,isBoy){
+  const cx=W/2;
+  const {shoulderOff,shoulderY,L1,L2,endCapX}=_chefLayout(H);
+  const skin=isBoy?'#f0b98a':'#e8a87c';
+
+  ctx.save();
+  for(const side of [-1,1]){
+    const sx=cx+side*shoulderOff, sy=shoulderY;
+    const tx=cx+side*endCapX,     ty=belanY;   // fist grips at end cap
+    const [ex,ey]=computeElbow(sx,sy,tx,ty,L1,L2,side<0);
+
+    // upper arm
+    ctx.strokeStyle=skin; ctx.lineWidth=11; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.stroke();
+    // forearm
+    ctx.lineWidth=9;
+    ctx.beginPath(); ctx.moveTo(ex,ey); ctx.lineTo(tx,ty); ctx.stroke();
+    // elbow
+    ctx.fillStyle='rgba(0,0,0,0.08)';
+    ctx.beginPath(); ctx.arc(ex,ey,6,0,Math.PI*2); ctx.fill();
+
+    // FIST — oval wider than arm, gripping end cap from above
+    // shadow
+    ctx.fillStyle='rgba(0,0,0,0.18)';
+    ctx.beginPath(); ctx.ellipse(tx+2,ty+4,16,12,0,0,Math.PI*2); ctx.fill();
+    // fist body
+    ctx.fillStyle=skin;
+    ctx.beginPath(); ctx.ellipse(tx,ty,16,12,0,0,Math.PI*2); ctx.fill();
+    // knuckle ridges (3 small arcs across the top of the fist)
+    ctx.strokeStyle='rgba(0,0,0,0.22)'; ctx.lineWidth=1.5; ctx.lineCap='round';
+    for(let k=-1;k<=1;k++){
+      ctx.beginPath(); ctx.arc(tx+k*5,ty-6,4,Math.PI+0.3,Math.PI*2-0.3); ctx.stroke();
+    }
+    // highlight
+    ctx.fillStyle='rgba(255,255,255,0.22)';
+    ctx.beginPath(); ctx.ellipse(tx-side*4,ty-3,8,5,0,0,Math.PI*2); ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -664,15 +681,13 @@ class RotiGame{
 
     ctx.setTransform(window.devicePixelRatio||1,0,0,window.devicePixelRatio||1,0,0);
     drawKitchen(ctx,W,H);
-    drawChef(ctx,W,H,this.chef,curBelanY);   // chef behind chakla/dough
+    drawChefBody(ctx,W,H,this.chef);         // body/head behind chakla
     drawChakla(ctx,cx,doughCY,120);          // rolling board
 
     const progress=this.rollsPerRoti>0?this.currentRolls/this.rollsPerRoti:0;
     drawDough(ctx,cx,doughCY,progress,this.flashT);
-
-    if(this.belan.active){
-      drawBelan(ctx,cx,doughCY,this.belan.t,this.belan.dir,BELAN_SPAN,belanHW);
-    }
+    drawBelan(ctx,cx,curBelanY,belanHW);     // always visible, at live position
+    drawChefArms(ctx,W,H,curBelanY,this.chef.isBoy); // arms + fists on top
 
     this.flour.draw(ctx);
 
