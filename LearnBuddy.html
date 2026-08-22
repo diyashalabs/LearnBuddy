@@ -235,6 +235,11 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--ac
         <div class="gdesc">Wave both hands to keep the dancer grooving — score how long you dance!</div>
         <span class="badge" style="background:#c030d0;color:#fff">Always On</span>
       </div>
+      <div class="game-card" id="balloonCard" onclick="openBalloonGame()">
+        <div class="gname">🎈 Balloon Blow</div>
+        <div class="gdesc">Alternate hands over sensors to blow balloons — pop as many as you can in 60 seconds!</div>
+        <span class="badge" style="background:#e04080;color:#fff">Always On</span>
+      </div>
     </div>
   </div>
 
@@ -637,6 +642,8 @@ function handleIR(sensor, value) {
     _rotiWin.postMessage({type:'ir', s:sensor, v:value}, '*');
   if (_danceWin && !_danceWin.closed)
     _danceWin.postMessage({type:'ir', s:sensor, v:value}, '*');
+  if (_balloonWin && !_balloonWin.closed)
+    _balloonWin.postMessage({type:'ir', s:sensor, v:value}, '*');
 }
 function openExplorerGame() {
   _explorerWin = window.open('games/explorer_run.html', 'explorer_run',
@@ -654,6 +661,12 @@ function openDanceGame() {
   _danceWin = window.open('games/dance_dance.html', 'dance_dance',
     'width=960,height=660,resizable=yes,scrollbars=no');
   if (_danceWin) _danceWin.focus();
+}
+let _balloonWin = null;
+function openBalloonGame() {
+  _balloonWin = window.open('games/balloon_blow.html', 'balloon_blow',
+    'width=960,height=660,resizable=yes,scrollbars=no');
+  if (_balloonWin) _balloonWin.focus();
 }
 
 // ── Send hardware command (LED / display) via active transport ────────────────
