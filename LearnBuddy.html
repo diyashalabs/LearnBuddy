@@ -240,6 +240,21 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--ac
         <div class="gdesc">Alternate hands over sensors to blow balloons — pop as many as you can in 60 seconds!</div>
         <span class="badge" style="background:#e04080;color:#fff">Always On</span>
       </div>
+      <div class="game-card" id="ballRailCard" onclick="openBallRailGame()">
+        <div class="gname">💨 Ball Blower</div>
+        <div class="gdesc">Blow through a straw to roll a ball along rails on the chakla — score round trips!</div>
+        <span class="badge" style="background:#0080cc;color:#fff">Always On</span>
+      </div>
+      <div class="game-card" id="turboBusCard" onclick="openTurboBusGame()">
+        <div class="gname">🚌 Turbo Bus</div>
+        <div class="gdesc">Steer the bus through 3 lanes — dodge cars, trucks and cones, score by distance!</div>
+        <span class="badge" style="background:#ff8800;color:#fff">Always On</span>
+      </div>
+      <div class="game-card" id="zapItCard" onclick="openZapItGame()">
+        <div class="gname">⚡ Zap It!</div>
+        <div class="gdesc">Objects fall in two columns — zap the prompted one with the correct gun before it hits the ground!</div>
+        <span class="badge" style="background:#7744cc;color:#fff">Always On</span>
+      </div>
     </div>
   </div>
 
@@ -644,6 +659,12 @@ function handleIR(sensor, value) {
     _danceWin.postMessage({type:'ir', s:sensor, v:value}, '*');
   if (_balloonWin && !_balloonWin.closed)
     _balloonWin.postMessage({type:'ir', s:sensor, v:value}, '*');
+  if (_ballRailWin && !_ballRailWin.closed)
+    _ballRailWin.postMessage({type:'ir', s:sensor, v:value}, '*');
+  if (_turboBusWin && !_turboBusWin.closed)
+    _turboBusWin.postMessage({type:'ir', s:sensor, v:value}, '*');
+  if (_zapItWin && !_zapItWin.closed)
+    _zapItWin.postMessage({type:'ir', s:sensor, v:value}, '*');
 }
 function openExplorerGame() {
   _explorerWin = window.open('games/explorer_run.html', 'explorer_run',
@@ -667,6 +688,24 @@ function openBalloonGame() {
   _balloonWin = window.open('games/balloon_blow.html', 'balloon_blow',
     'width=960,height=660,resizable=yes,scrollbars=no');
   if (_balloonWin) _balloonWin.focus();
+}
+let _ballRailWin = null;
+function openBallRailGame() {
+  _ballRailWin = window.open('games/ball_rail.html', 'ball_rail',
+    'width=960,height=660,resizable=yes,scrollbars=no');
+  if (_ballRailWin) _ballRailWin.focus();
+}
+let _turboBusWin = null;
+function openTurboBusGame() {
+  _turboBusWin = window.open('games/turbo_bus.html', 'turbo_bus',
+    'width=1024,height=660,resizable=yes,scrollbars=no');
+  if (_turboBusWin) _turboBusWin.focus();
+}
+let _zapItWin = null;
+function openZapItGame() {
+  _zapItWin = window.open('games/zap_it.html', 'zap_it',
+    'width=960,height=660,resizable=yes,scrollbars=no');
+  if (_zapItWin) _zapItWin.focus();
 }
 
 // ── Send hardware command (LED / display) via active transport ────────────────
