@@ -255,6 +255,11 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--ac
         <div class="gdesc">Objects fall in two columns — zap the prompted one with the correct gun before it hits the ground!</div>
         <span class="badge" style="background:#7744cc;color:#fff">Always On</span>
       </div>
+      <div class="game-card" id="skyVoyageCard" onclick="openSkyVoyageGame()">
+        <div class="gname">🎈 Sky Voyage</div>
+        <div class="gdesc">Blow to lift your hot air balloon — steer with S1/S2, dodge clouds and collect stars!</div>
+        <span class="badge" style="background:#1a88cc;color:#fff">Blow Sensor</span>
+      </div>
     </div>
   </div>
 
@@ -458,10 +463,11 @@ const U_RND  = '0000ff06-0000-1000-8000-00805f9b34fb';
 const U_ANL  = '0000ff07-0000-1000-8000-00805f9b34fb';
 const U_IR   = '0000ff09-0000-1000-8000-00805f9b34fb';
 const U_CTL  = '0000ff0a-0000-1000-8000-00805f9b34fb';
+const U_PRS  = '0000ff0b-0000-1000-8000-00805f9b34fb';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let device,server,svc;
-let charList,charSel,charCfg,charSes,charScr,charRnd,charAnl,charIR,charCtl;
+let charList,charSel,charCfg,charSes,charScr,charRnd,charAnl,charIR,charCtl,charPrs;
 let ws = null;
 let transport = 'none';  // 'ble' | 'ws' | 'none'
 let selectedGameId = null;
@@ -606,6 +612,7 @@ connectBtn.addEventListener('click', async ()=>{
     charAnl  = await svc.getCharacteristic(U_ANL);
     charIR   = await svc.getCharacteristic(U_IR);
     charCtl  = await svc.getCharacteristic(U_CTL);
+    charPrs  = await svc.getCharacteristic(U_PRS);
     log('Characteristics ready');
 
     await charScr.startNotifications();
@@ -615,6 +622,10 @@ connectBtn.addEventListener('click', async ()=>{
     await charIR.startNotifications();
     charIR.addEventListener('characteristicvaluechanged', e => {
       try { const d = JSON.parse(dec(e.target.value)); handleIR(d.s, d.v); } catch(_) {}
+    });
+    await charPrs.startNotifications();
+    charPrs.addEventListener('characteristicvaluechanged', e => {
+      try { const d = JSON.parse(dec(e.target.value)); handlePressure(d.raw, d.delta, d.pct); } catch(_) {}
     });
 
     transport = 'ble';
@@ -665,6 +676,8 @@ function handleIR(sensor, value) {
     _turboBusWin.postMessage({type:'ir', s:sensor, v:value}, '*');
   if (_zapItWin && !_zapItWin.closed)
     _zapItWin.postMessage({type:'ir', s:sensor, v:value}, '*');
+  if (_skyVoyageWin && !_skyVoyageWin.closed)
+    _skyVoyageWin.postMessage({type:'ir', s:sensor, v:value}, '*');
 }
 function openExplorerGame() {
   _explorerWin = window.open('games/explorer_run.html', 'explorer_run',
@@ -706,6 +719,20 @@ function openZapItGame() {
   _zapItWin = window.open('games/zap_it.html', 'zap_it',
     'width=960,height=660,resizable=yes,scrollbars=no');
   if (_zapItWin) _zapItWin.focus();
+}
+let _skyVoyageWin = null;
+function openSkyVoyageGame() {
+  _skyVoyageWin = window.open('games/sky_voyage.html', 'sky_voyage',
+    'width=1024,height=660,resizable=yes,scrollbars=no');
+  if (_skyVoyageWin) _skyVoyageWin.focus();
+}
+
+// ── Pressure sensor relay (HX710B → game windows) ────────────────────────────
+function handlePressure(raw, delta, pct) {
+  const msg = { type:'pressure', raw, delta, pct };
+  if (_skyVoyageWin  && !_skyVoyageWin.closed)  _skyVoyageWin.postMessage(msg,  '*');
+  if (_balloonWin    && !_balloonWin.closed)     _balloonWin.postMessage(msg,    '*');
+  if (_ballRailWin   && !_ballRailWin.closed)    _ballRailWin.postMessage(msg,   '*');
 }
 
 // ── Send hardware command (LED / display) via active transport ────────────────
@@ -757,8 +784,9 @@ document.getElementById('connectWsBtn').addEventListener('click', () => {
     if (e.data.charAt(0) !== '{') return;
     try {
       const d = JSON.parse(e.data);
-      if (d.type === 'ir')    handleIR(d.s, d.v);
-      if (d.type === 'round') handleRound(d);
+      if (d.type === 'ir')       handleIR(d.s, d.v);
+      if (d.type === 'round')    handleRound(d);
+      if (d.type === 'pressure') handlePressure(d.raw, d.delta, d.pct);
     } catch(_) {}
   };
 });

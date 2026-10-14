@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sky Voyage</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',system-ui,sans-serif;background:#03060f;color:#fff;
+         overflow:hidden;width:100vw;height:100vh;}
+    canvas{display:block;width:100%;height:100%;}
+    .overlay{position:fixed;inset:0;z-index:10;display:flex;align-items:center;
+      justify-content:center;
+      background:radial-gradient(ellipse at 50% 20%,#0a1540 0%,#03060f 70%);}
+    .overlay.hidden{display:none}
+    .card{background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.14);
+      border-radius:22px;padding:28px 32px;max-width:400px;width:90%;
+      text-align:center;backdrop-filter:blur(14px);}
+    .g-title{font-size:2rem;font-weight:900;letter-spacing:.5px;
+      background:linear-gradient(135deg,#88ddff 0%,#ffdd88 60%,#ff88cc 100%);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+    .sub{font-size:.87rem;color:rgba(255,255,255,.48);}
+    .txt-input{width:100%;padding:10px 14px;font-size:1rem;font-family:inherit;
+      background:rgba(255,255,255,.09);border:1.5px solid rgba(255,255,255,.2);
+      border-radius:12px;color:#fff;outline:none;text-align:center;margin-bottom:4px;}
+    .txt-input::placeholder{color:rgba(255,255,255,.32);}
+    .opt-label{font-size:.72rem;font-weight:700;color:rgba(255,255,255,.4);
+      text-transform:uppercase;letter-spacing:.09em;margin:12px 0 7px;}
+    .opt-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+    .btn{display:inline-block;padding:10px 20px;border:none;border-radius:12px;
+      font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit;
+      transition:opacity .15s,transform .1s;background:#2255bb;color:#fff;}
+    .btn:active{opacity:.8;transform:scale(.97);}
+    .btn.sel{outline:2.5px solid #fff;outline-offset:2px;}
+    .btn.sm{padding:7px 14px;font-size:.82rem;border-radius:10px;}
+    .btn.big{font-size:1.12rem;padding:14px 32px;border-radius:16px;
+      background:linear-gradient(135deg,#88ddff,#5566ff);
+      box-shadow:0 4px 22px rgba(80,120,255,.5);}
+    .stat-big{font-size:3.4rem;font-weight:900;
+      background:linear-gradient(135deg,#88ddff,#ffdd88);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+  </style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<!-- CONNECT -->
+<div id="scr-connect" class="overlay">
+  <div class="card">
+    <div class="g-title">🎈 Sky Voyage</div>
+    <p class="sub" style="margin:8px 0 20px">Connect your LearnBuddy board</p>
+    <div style="display:flex;flex-direction:column;gap:10px;max-width:210px;margin:0 auto">
+      <button id="bleBtn" class="btn">Bluetooth 📶</button>
+      <button id="wsBtn"  class="btn" style="background:#1a7a45">Wi-Fi 🌐</button>
+      <button id="kbBtn"  class="btn" style="background:#444">Keyboard ⌨️</button>
+    </div>
+    <p id="conStatus" style="color:rgba(255,255,255,.45);font-size:.82rem;min-height:1.3em;margin-top:10px"></p>
+  </div>
+</div>
+
+<!-- SETUP -->
+<div id="scr-setup" class="overlay hidden">
+  <div class="card">
+    <div class="g-title">🎈 Sky Voyage</div>
+    <p class="sub" style="margin:6px 0 14px">Blow to rise · S1/S2 steer · dodge clouds · collect stars!</p>
+    <input class="txt-input" id="playerName" type="text" maxlength="14"
+           placeholder="Player Name" autocomplete="off">
+    <div class="opt-label">Difficulty</div>
+    <div class="opt-row" id="diffBtns"></div>
+    <p class="sub" style="margin-top:12px;font-size:.77rem">
+      <strong>Blow</strong> into pipe = rise &nbsp;|&nbsp; <strong>S1</strong> = steer left &nbsp;|&nbsp; <strong>S2</strong> = steer right<br>
+      Balloon descends when you stop — 3 lives!
+    </p>
+    <button id="startBtn" class="btn big" style="margin-top:16px">Fly! 🎈</button>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div id="scr-result" class="overlay hidden">
+  <div class="card">
+    <div class="g-title" id="resTitle">Game Over!</div>
+    <div class="stat-big" id="resScore">0</div>
+    <p style="font-size:.95rem;color:rgba(255,255,255,.6);margin:4px 0 2px" id="resStar"></p>
+    <p style="font-size:.82rem;color:rgba(255,255,255,.4)" id="resSub"></p>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:20px">
+      <button id="resAgainBtn" class="btn" style="background:#1a7a45">Play Again 🔁</button>
+      <button id="resHomeBtn"  class="btn">Home 🏠</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $  = id => document.getElementById(id);
+const lerp = (a,b,t) => a+(b-a)*t;
+const rand = (lo,hi) => lo+Math.random()*(hi-lo);
+const TAU  = Math.PI*2;
+const clamp = (v,lo,hi) => Math.max(lo,Math.min(hi,v));
+
+/* ── difficulty ─────────────────────────────────────────────────────────────── */
+const DIFF = {
+  easy:   { gravity:55,  lift:95,  cloudSpd:55,  spawnRate:3.5, starRate:2.2 },
+  medium: { gravity:80,  lift:140, cloudSpd:85,  spawnRate:2.4, starRate:1.6 },
+  hard:   { gravity:110, lift:190, cloudSpd:120, spawnRate:1.6, starRate:1.1 },
+};
+
+/* ── pre-baked stars ────────────────────────────────────────────────────────── */
+const BGSTARS = Array.from({length:80},()=>({
+  xf:Math.random(), yf:Math.random(),
+  r:Math.random()*1.5+0.3, tw:Math.random()*TAU
+}));
+
+/* ── IR / pressure input ────────────────────────────────────────────────────── */
+class SkyIR {
+  constructor(onLeft, onRight){
+    this._b=[false,false]; this._onL=onLeft; this._onR=onRight;
+    this._hL=false; this._hR=false;
+    window.addEventListener('message',  e=>{ const d=e.data; if(d?.type==='ir') this._ir(d.s,d.v); if(d?.type==='pressure') this._prs(d.pct); });
+    document.addEventListener('lb:ir',  e=>{ const d=e.detail; this._ir(d.s??d.sensor,d.v??d.value); });
+    window.addEventListener('keydown',  e=>this._key(e));
+    window.addEventListener('keyup',    e=>this._key(e));
+  }
+  _ir(s,v){
+    const i=s-1, bl=(v===0);
+    if(!bl&&this._b[i]){ if(s===1) this._onL(); else this._onR(); }
+    this._b[i]=bl;
+  }
+  _prs(pct){ if(this._onPct) this._onPct(pct); }
+  onPressure(fn){ this._onPct=fn; }
+  _key(e){
+    const k=e.key.toLowerCase(), up=(e.type==='keyup');
+    if(k==='arrowleft'||k==='a'){ if(up) this._hL=false; else if(!this._hL){ this._hL=true; this._onL(); } }
+    if(k==='arrowright'||k==='d'){ if(up) this._hR=false; else if(!this._hR){ this._hR=true; this._onR(); } }
+    // spacebar simulates blow: hold = pct 80, release = 0
+    if(k===' '){ if(this._onPct) this._onPct(up?0:80); }
+  }
+}
+
+/* ── particles ──────────────────────────────────────────────────────────────── */
+class Particle {
+  constructor(x,y,col,vx,vy){ this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.col=col;this.life=1;this.r=rand(3,8); }
+  update(dt){ this.x+=this.vx*dt;this.y+=this.vy*dt;this.vy+=60*dt;this.life-=dt*2.2; }
+  done(){ return this.life<=0; }
+  draw(ctx){ ctx.globalAlpha=Math.max(0,this.life*0.85);ctx.fillStyle=this.col;ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,TAU);ctx.fill();ctx.globalAlpha=1; }
+}
+class FloatText {
+  constructor(x,y,text,col){ this.x=x;this.y=y;this.text=text;this.col=col;this.life=1;this.vy=-55; }
+  update(dt){ this.y+=this.vy*dt;this.life-=dt*1.6; }
+  done(){ return this.life<=0; }
+  draw(ctx){ ctx.globalAlpha=Math.max(0,this.life);ctx.fillStyle=this.col;ctx.font='bold 22px system-ui';ctx.textAlign='center';ctx.fillText(this.text,this.x,this.y);ctx.globalAlpha=1; }
+}
+
+/* ── obstacle: cloud ────────────────────────────────────────────────────────── */
+class Cloud {
+  constructor(W,H,spd){
+    this.x=W+80; this.y=rand(H*0.15,H*0.82);
+    this.spd=spd*(0.8+Math.random()*0.5);
+    this.w=rand(90,160); this.h=rand(50,80);
+    this.danger=true; // collide
+  }
+  update(dt){ this.x-=this.spd*dt; }
+  done(W){ return this.x < -this.w-10; }
+  hits(bx,by,br){
+    return Math.abs(bx-this.x)<this.w*0.5+br && Math.abs(by-this.y)<this.h*0.4+br;
+  }
+  draw(ctx){
+    ctx.save();
+    // shadow / depth
+    ctx.globalAlpha=0.18; ctx.fillStyle='#001030';
+    this._path(ctx,this.x+6,this.y+6,this.w,this.h); ctx.fill();
+    // body
+    ctx.globalAlpha=1;
+    const g=ctx.createLinearGradient(this.x,this.y-this.h/2,this.x,this.y+this.h/2);
+    g.addColorStop(0,'#dde8ff'); g.addColorStop(1,'#aab8d8');
+    ctx.fillStyle=g; this._path(ctx,this.x,this.y,this.w,this.h); ctx.fill();
+    // danger tint
+    ctx.globalAlpha=0.25; ctx.fillStyle='#ff4444';
+    this._path(ctx,this.x,this.y,this.w,this.h); ctx.fill();
+    ctx.restore();
+  }
+  _path(ctx,cx,cy,w,h){
+    const r=h*0.5;
+    ctx.beginPath();
+    ctx.ellipse(cx,cy,w*0.5,r*0.65,0,0,TAU);
+    ctx.ellipse(cx-w*0.22,cy-r*0.3,w*0.22,r*0.55,0,0,TAU);
+    ctx.ellipse(cx+w*0.20,cy-r*0.2,w*0.20,r*0.50,0,0,TAU);
+  }
+}
+
+/* ── collectible: star ──────────────────────────────────────────────────────── */
+class Star {
+  constructor(W,H,spd){
+    this.x=W+40; this.y=rand(H*0.12,H*0.85);
+    this.spd=spd*0.7; this.r=18; this.phase=rand(0,TAU); this.collected=false;
+  }
+  update(dt){ this.x-=this.spd*dt; this.phase+=dt*3; }
+  done(W){ return this.x < -60; }
+  hits(bx,by){ return Math.hypot(bx-this.x,by-this.y)<this.r+28; }
+  draw(ctx,t){
+    if(this.collected) return;
+    ctx.save(); ctx.translate(this.x, this.y+Math.sin(this.phase)*5);
+    const glow=ctx.createRadialGradient(0,0,0,0,0,28);
+    glow.addColorStop(0,'rgba(255,240,80,0.4)'); glow.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(0,0,28,0,TAU); ctx.fill();
+    ctx.font='32px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('⭐',0,2);
+    ctx.restore();
+  }
+}
+
+/* ── balloon + gondola ──────────────────────────────────────────────────────── */
+function drawBalloon(ctx, x, y, flame, recoilX, t){
+  ctx.save(); ctx.translate(x + Math.sin(t*0.9)*3 + recoilX*8, y);
+
+  // envelope
+  const bh=80, bw=58;
+  const eg=ctx.createRadialGradient(-bw*0.2,-bh*0.3,4,0,0,bh*0.9);
+  eg.addColorStop(0,'#ff8844'); eg.addColorStop(0.45,'#ff3322'); eg.addColorStop(0.75,'#cc1144'); eg.addColorStop(1,'#880022');
+  ctx.fillStyle=eg;
+  ctx.beginPath(); ctx.ellipse(0,-bh*0.55,bw*0.5,bh*0.55,0,0,TAU); ctx.fill();
+
+  // panel lines
+  ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=1.5;
+  [-0.28,0,0.28].forEach(ox=>{
+    ctx.beginPath(); ctx.moveTo(ox*bw,-bh); ctx.quadraticCurveTo(ox*bw*1.6,-bh*0.5,ox*bw*0.6,0); ctx.stroke();
+  });
+
+  // highlight
+  const hl=ctx.createRadialGradient(-bw*0.18,-bh*0.65,2,-bw*0.12,-bh*0.55,bw*0.28);
+  hl.addColorStop(0,'rgba(255,255,255,0.38)'); hl.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=hl; ctx.beginPath(); ctx.ellipse(-bw*0.12,-bh*0.55,bw*0.22,bh*0.22,0,0,TAU); ctx.fill();
+
+  // ropes
+  ctx.strokeStyle='rgba(200,180,120,0.7)'; ctx.lineWidth=1.2;
+  [[-bw*0.3,0],[bw*0.3,0]].forEach(([rx,ry])=>{
+    ctx.beginPath(); ctx.moveTo(rx,ry); ctx.lineTo(rx*0.6,20); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-rx,ry); ctx.lineTo(-rx*0.6,20); ctx.stroke();
+  });
+
+  // burner flame
+  if(flame>0){
+    const fl=flame*22+8;
+    const fg=ctx.createLinearGradient(0,-fl-8,0,0);
+    fg.addColorStop(0,'rgba(255,250,180,'+Math.min(1,flame*1.2)+')');
+    fg.addColorStop(0.4,'rgba(255,140,20,'+Math.min(1,flame)+')');
+    fg.addColorStop(1,'rgba(255,60,0,0)');
+    ctx.fillStyle=fg;
+    ctx.beginPath(); ctx.ellipse(0,-fl*0.5,7+flame*4,fl*0.6,0,0,TAU); ctx.fill();
+  }
+
+  // gondola
+  const gndG=ctx.createLinearGradient(-18,18,18,36);
+  gndG.addColorStop(0,'#8B6914'); gndG.addColorStop(1,'#5a3f0a');
+  ctx.fillStyle=gndG;
+  ctx.beginPath(); ctx.roundRect(-18,18,36,18,5); ctx.fill();
+  ctx.strokeStyle='rgba(255,220,100,0.4)'; ctx.lineWidth=1;
+  ctx.strokeRect(-18,18,36,18);
+
+  ctx.restore();
+}
+
+/* ── background ─────────────────────────────────────────────────────────────── */
+function drawSky(ctx,W,H,t,altitude){
+  const hi=clamp(altitude/3000,0,1);
+  // gradient shifts from deep blue → night purple at high altitude
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  const c1=`hsl(${220+hi*30},${80-hi*30}%,${12+hi*6}%)`;
+  const c2=`hsl(${200+hi*40},${60-hi*20}%,${7+hi*3}%)`;
+  bg.addColorStop(0,c1); bg.addColorStop(1,c2);
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+
+  // stars (brighter at high altitude)
+  BGSTARS.forEach(s=>{
+    const twinkle=0.4+0.6*Math.sin(t*1.1+s.tw);
+    ctx.globalAlpha=twinkle*(0.3+hi*0.65);
+    ctx.fillStyle='#ffffff';
+    ctx.beginPath(); ctx.arc(s.xf*W,s.yf*H*0.9,s.r,0,TAU); ctx.fill();
+  });
+  ctx.globalAlpha=1;
+
+  // moon
+  const mx=W*0.82, my=H*0.12;
+  const moonG=ctx.createRadialGradient(mx-6,my-5,2,mx,my,22);
+  moonG.addColorStop(0,'#fffff0'); moonG.addColorStop(0.6,'#f0e890'); moonG.addColorStop(1,'rgba(240,230,140,0)');
+  ctx.fillStyle=moonG; ctx.beginPath(); ctx.arc(mx,my,22,0,TAU); ctx.fill();
+
+  // horizon glow
+  const hz=ctx.createLinearGradient(0,H*0.6,0,H);
+  hz.addColorStop(0,'rgba(80,120,200,0)'); hz.addColorStop(1,'rgba(40,80,160,0.25)');
+  ctx.fillStyle=hz; ctx.fillRect(0,H*0.6,W,H*0.4);
+}
+
+/* ── parallax ground hill ────────────────────────────────────────────────────── */
+function drawGround(ctx,W,H,scroll){
+  // far hills
+  ctx.fillStyle='#0d1f3a';
+  ctx.beginPath(); ctx.moveTo(0,H);
+  for(let x=0;x<=W+80;x+=40){
+    ctx.lineTo(x, H*0.88 + Math.sin((x+scroll*0.3)*0.022)*28 + Math.sin((x+scroll*0.3)*0.008)*18);
+  }
+  ctx.lineTo(W,H); ctx.closePath(); ctx.fill();
+
+  // near hills
+  ctx.fillStyle='#091428';
+  ctx.beginPath(); ctx.moveTo(0,H);
+  for(let x=0;x<=W+80;x+=30){
+    ctx.lineTo(x, H*0.93 + Math.sin((x+scroll*0.7)*0.028)*22 + Math.sin((x+scroll*0.7)*0.011)*14);
+  }
+  ctx.lineTo(W,H); ctx.closePath(); ctx.fill();
+}
+
+/* ── HUD ─────────────────────────────────────────────────────────────────────── */
+function drawHUD(ctx,W,H,score,lives,altM,pct,name){
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,46);
+
+  ctx.fillStyle='#ffdd44'; ctx.font='bold 20px system-ui'; ctx.textAlign='left';
+  ctx.fillText(`⭐ ${score}`, 14, 30);
+
+  // altitude
+  ctx.fillStyle='#88ddff'; ctx.font='bold 14px system-ui'; ctx.textAlign='center';
+  ctx.fillText(`↑ ${altM}m`, W/2, 30);
+
+  // lives
+  ctx.font='18px system-ui'; ctx.textAlign='right';
+  for(let i=0;i<3;i++){
+    ctx.fillStyle=i<lives?'#ff5566':'rgba(255,255,255,0.15)';
+    ctx.fillText('♥',W-14-i*24,30);
+  }
+
+  if(name){ ctx.font='11px system-ui'; ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.textAlign='left'; ctx.fillText(name,14,44); }
+
+  // blow power bar (right side vertical)
+  const bx=W-18, by=H*0.25, bh=H*0.45;
+  ctx.fillStyle='rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.roundRect(bx-10,by,20,bh,6); ctx.fill();
+  if(pct>0){
+    const fh=(pct/100)*bh;
+    const col=pct>70?'#ff8844':pct>35?'#88ffcc':'#44aaff';
+    ctx.fillStyle=col;
+    ctx.beginPath(); ctx.roundRect(bx-9,by+bh-fh,18,fh,5); ctx.fill();
+  }
+  ctx.font='10px system-ui'; ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.textAlign='center';
+  ctx.fillText('BLOW',bx,by+bh+14);
+}
+
+/* ── main game ───────────────────────────────────────────────────────────────── */
+class SkyGame {
+  constructor(cv,ctx,cfg){
+    this.cv=cv; this.ctx=ctx;
+    this.diff=DIFF[cfg.diff]; this.name=cfg.name;
+    this.running=true; this.t=0; this.lastNow=performance.now();
+
+    const g=this._geom();
+    this.bx=g.W*0.28; this.by=g.H*0.55;
+    this.vx=0; this.vy=0;
+    this.pct=0;       // current blow %
+    this.altitude=0;  // meters climbed (score basis)
+    this.score=0; this.lives=3;
+
+    this.clouds=[]; this.stars=[]; this.particles=[]; this.floats=[];
+    this.cloudTimer=0; this.starTimer=0;
+    this.scroll=0;
+    this.recoilX=0;
+    this.screenFlash=0; this.screenFlashCol='rgba(255,50,30,0.2)';
+    this.invincible=0; // brief invincibility after hit
+
+    this._loop=this._loop.bind(this);
+    requestAnimationFrame(this._loop);
+  }
+
+  _geom(){
+    const dpr=window.devicePixelRatio||1;
+    return { W:this.cv.width/dpr, H:this.cv.height/dpr };
+  }
+
+  setPct(p){ this.pct=clamp(p,0,100); }
+  steerLeft(){ this.vx=Math.max(this.vx-60,-180); this.recoilX=-1; }
+  steerRight(){ this.vx=Math.min(this.vx+60,180);  this.recoilX=1; }
+
+  _loop(now){
+    if(!this.running) return;
+    const dt=Math.min((now-this.lastNow)/1000,.055);
+    this.lastNow=now; this.t+=dt;
+    this._update(dt); this._draw();
+    requestAnimationFrame(this._loop);
+  }
+
+  _update(dt){
+    const g=this._geom();
+
+    // physics — map pct directly to a target vertical velocity
+    // pct=0 → fall at fallSpd, pct=50 → hover, pct=100 → rise at riseSpd
+    const fallSpd =  this.diff.gravity * 2.2;
+    const riseSpd =  this.diff.lift;
+    const targetVy = lerp(fallSpd, -riseSpd, this.pct / 100);
+    this.vy = lerp(this.vy, targetVy, 1 - Math.exp(-8 * dt));
+    this.vx += -this.vx*3*dt; // horizontal drag
+    this.recoilX += -this.recoilX*6*dt;
+
+    this.by += this.vy*dt;
+    this.bx += this.vx*dt;
+
+    // clamp to screen
+    this.bx = clamp(this.bx, 60, g.W-60);
+    this.by = clamp(this.by, 60, g.H-30);
+
+    // altitude (rises when balloon goes up)
+    if(this.vy<0) this.altitude += Math.abs(this.vy)*dt*0.4;
+    this.altitude = Math.max(0, this.altitude);
+
+    // score = altitude-based
+    this.score = Math.floor(this.altitude);
+
+    this.scroll += this.diff.cloudSpd * dt;
+
+    // spawn clouds
+    this.cloudTimer -= dt;
+    if(this.cloudTimer<=0){
+      this.clouds.push(new Cloud(g.W, g.H, this.diff.cloudSpd));
+      this.cloudTimer = this.diff.spawnRate*(0.8+Math.random()*0.5);
+    }
+
+    // spawn stars
+    this.starTimer -= dt;
+    if(this.starTimer<=0){
+      this.stars.push(new Star(g.W, g.H, this.diff.cloudSpd));
+      this.starTimer = this.diff.starRate*(0.7+Math.random()*0.6);
+    }
+
+    // update obstacles
+    this.clouds = this.clouds.filter(c=>{ c.update(dt); return !c.done(g.W); });
+    this.stars  = this.stars.filter(s=>{ s.update(dt); return !s.done(g.W); });
+
+    // collision: clouds
+    if(this.invincible<=0){
+      for(const c of this.clouds){
+        if(c.hits(this.bx, this.by, 30)){
+          this.lives--;
+          this.invincible=2.0;
+          this.screenFlash=1; this.screenFlashCol='rgba(255,50,30,0.25)';
+          for(let i=0;i<14;i++) this.particles.push(new Particle(this.bx,this.by,'#ff8844',rand(-120,120),rand(-150,-20)));
+          this.floats.push(new FloatText(this.bx,this.by-40,'💥 Ouch!','#ff6644'));
+          this.vy = Math.min(this.vy+120, 180);
+          if(this.lives<=0){ this.running=false; setTimeout(()=>window.__ui?.showResult(this),800); }
+          break;
+        }
+      }
+    } else {
+      this.invincible -= dt;
+    }
+
+    // collision: stars
+    for(const s of this.stars){
+      if(!s.collected && s.hits(this.bx, this.by)){
+        s.collected=true;
+        this.score+=50;
+        this.floats.push(new FloatText(s.x, s.y-20,'⭐ +50','#ffdd44'));
+        this.screenFlash=0.4; this.screenFlashCol='rgba(255,240,80,0.2)';
+        for(let i=0;i<8;i++) this.particles.push(new Particle(s.x,s.y,'#ffdd44',rand(-100,100),rand(-140,-20)));
+      }
+    }
+
+    this.particles=this.particles.filter(p=>{ p.update(dt); return !p.done(); });
+    this.floats   =this.floats.filter(f=>{ f.update(dt); return !f.done(); });
+    this.screenFlash=Math.max(0,this.screenFlash-dt*3.5);
+  }
+
+  _draw(){
+    const cv=this.cv, ctx=this.ctx, dpr=window.devicePixelRatio||1;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    const g=this._geom();
+
+    drawSky(ctx,g.W,g.H,this.t,this.altitude);
+    drawGround(ctx,g.W,g.H,this.scroll);
+
+    this.stars.forEach(s=>s.draw(ctx,this.t));
+    this.clouds.forEach(c=>c.draw(ctx));
+
+    // invincible flicker
+    if(this.invincible<=0 || Math.floor(this.invincible*8)%2===0){
+      const flame=clamp(this.pct/100,0,1);
+      drawBalloon(ctx,this.bx,this.by,flame,this.recoilX,this.t);
+    }
+
+    this.particles.forEach(p=>p.draw(ctx));
+    this.floats.forEach(f=>f.draw(ctx));
+
+    if(this.screenFlash>0){
+      ctx.fillStyle=this.screenFlashCol;
+      ctx.globalAlpha=this.screenFlash; ctx.fillRect(0,0,g.W,g.H); ctx.globalAlpha=1;
+    }
+
+    drawHUD(ctx,g.W,g.H,this.score,this.lives,Math.floor(this.altitude),this.pct,this.name);
+  }
+
+  destroy(){ this.running=false; }
+}
+
+/* ── audio ───────────────────────────────────────────────────────────────────── */
+class AudioManager{
+  constructor(){ this._ctx=null; }
+  _ensure(){ try{ if(!this._ctx) this._ctx=new(window.AudioContext||window.webkitAudioContext)(); if(this._ctx.state==='suspended') this._ctx.resume(); }catch(_){} }
+  _tone(f,d,type='sine',vol=0.15,delay=0){ this._ensure(); if(!this._ctx) return; try{ const c=this._ctx,g=c.createGain(),o=c.createOscillator(); o.type=type; o.frequency.value=f; const t=c.currentTime+delay; g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+0.01); g.gain.exponentialRampToValueAtTime(0.001,t+d); o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+d+0.05); }catch(_){} }
+  playStart(){ [330,440,550,660].forEach((f,i)=>this._tone(f,.1,'sine',.2,i*.08)); }
+  playEnd()  { [440,330,220,165].forEach((f,i)=>this._tone(f,.14,'sawtooth',.2,i*.1)); }
+  playClick(){ this._tone(600,.06); }
+  playStar() { [660,880,1100].forEach((f,i)=>this._tone(f,.09,'sine',.22,i*.06)); }
+  playHit()  { this._tone(200,.1,'sawtooth',.25); }
+}
+
+/* ── connection helpers ─────────────────────────────────────────────────────── */
+const _dec=v=>new TextDecoder().decode(v);
+function _disp(s,v){ document.dispatchEvent(new CustomEvent('lb:ir',{detail:{s,v}})); }
+async function _connBLE(onS){
+  try{
+    onS('Scanning…');
+    const dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'LearnBuddy'}],optionalServices:['0000ff00-0000-1000-8000-00805f9b34fb']});
+    onS('Connecting…');
+    const srv=await(await dev.gatt.connect()).getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
+    const ch=await srv.getCharacteristic('0000ff09-0000-1000-8000-00805f9b34fb');
+    await ch.startNotifications();
+    ch.addEventListener('characteristicvaluechanged',e=>{ try{ const d=JSON.parse(_dec(e.target.value)); _disp(d.s,d.v); }catch(_){} });
+    // pressure characteristic
+    try{
+      const cp=await srv.getCharacteristic('0000ff0b-0000-1000-8000-00805f9b34fb');
+      await cp.startNotifications();
+      cp.addEventListener('characteristicvaluechanged',e=>{
+        try{ const d=JSON.parse(_dec(e.target.value)); window.__ui?.game?.setPct(d.pct); }catch(_){}
+      });
+    }catch(_){}
+    onS('Connected ✓'); return true;
+  }catch(e){ onS(e.name==='NotFoundError'?'No device found':String(e)); return false; }
+}
+async function _connWS(onS){
+  return new Promise(res=>{
+    const host=location.hostname||'learnbuddy.local';
+    onS(`Connecting ws://${host}:81…`);
+    try{
+      const ws=new WebSocket(`ws://${host}:81`);
+      ws.onopen=()=>{ onS('Connected ✓'); res(true); };
+      ws.onerror=()=>{ onS('Cannot connect'); res(false); };
+      ws.onmessage=e=>{ try{ const d=JSON.parse(e.data); if(d.type==='ir') _disp(d.sensor,d.value); if(d.type==='pressure') window.__ui?.game?.setPct(d.pct); }catch(_){} };
+    }catch(e){ onS(String(e)); res(false); }
+  });
+}
+window.addEventListener('message',e=>{
+  if(e.data?.type==='ir')       _disp(e.data.s,e.data.v);
+  if(e.data?.type==='pressure') window.__ui?.game?.setPct(e.data.pct);
+});
+
+/* ── UI manager ─────────────────────────────────────────────────────────────── */
+class UIManager{
+  constructor(canvas,ctx,audio){
+    this.canvas=canvas; this.ctx=ctx; this.audio=audio; this.game=null;
+    this._selDiff='easy';
+    this._buildSel('diffBtns',[['easy','Easy 😊'],['medium','Medium 😄'],['hard','Hard 😤']],'df',v=>this._selDiff=v,'easy');
+    this._ir=new SkyIR(
+      ()=>this.game?.steerLeft(),
+      ()=>this.game?.steerRight()
+    );
+    this._ir.onPressure(p=>this.game?.setPct(p));
+    this._bind();
+    this._resize(); window.addEventListener('resize',()=>this._resize());
+  }
+  _resize(){
+    const dpr=window.devicePixelRatio||1;
+    this.canvas.width =window.innerWidth*dpr;
+    this.canvas.height=window.innerHeight*dpr;
+  }
+  _buildSel(id,opts,key,setter,def){
+    const row=$(id);
+    opts.forEach(([val,label])=>{
+      const b=document.createElement('button');
+      b.className='btn sm'; b.dataset[key]=val; b.textContent=label;
+      if(val===def) b.classList.add('sel');
+      b.addEventListener('click',()=>{
+        this.audio.playClick(); setter(val);
+        row.querySelectorAll('.btn').forEach(x=>x.classList.toggle('sel',x.dataset[key]===val));
+      });
+      row.appendChild(b);
+    });
+    setter(def);
+  }
+  _bind(){
+    $('bleBtn').addEventListener('click',async()=>{ this.audio._ensure(); if(await _connBLE(s=>$('conStatus').textContent=s)) this._goSetup(); });
+    $('wsBtn') .addEventListener('click',async()=>{ this.audio._ensure(); if(await _connWS (s=>$('conStatus').textContent=s)) this._goSetup(); });
+    $('kbBtn') .addEventListener('click',()=>{ this.audio._ensure(); this._goSetup(); });
+    $('startBtn')   .addEventListener('click',()=>this._start());
+    $('resAgainBtn').addEventListener('click',()=>{ this.audio.playClick(); $('scr-result').classList.add('hidden'); this._goSetup(); });
+    $('resHomeBtn') .addEventListener('click',()=>{ this.audio.playClick(); $('scr-result').classList.add('hidden'); this._goSetup(); });
+  }
+  _goSetup(){
+    ['scr-connect','scr-result'].forEach(id=>$(id).classList.add('hidden'));
+    $('scr-setup').classList.remove('hidden');
+  }
+  _start(){
+    this.audio.playClick();
+    const name=$('playerName').value.trim()||'Pilot';
+    $('scr-setup').classList.add('hidden');
+    if(this.game) this.game.destroy();
+    this.game=new SkyGame(this.canvas,this.ctx,{name,diff:this._selDiff});
+    this.audio.playStart();
+  }
+  showResult(g){
+    $('resScore').textContent=`${g.score} pts`;
+    $('resTitle').textContent=g.score>800?'Sky Master! 🏆':g.score>300?'High Flyer! ✈️':'Keep Blowing! 💨';
+    $('resStar').textContent=g.score>800?'⭐⭐⭐':g.score>300?'⭐⭐':'⭐';
+    $('resSub').textContent=`Reached ${Math.floor(g.altitude)}m altitude`;
+    $('scr-result').classList.remove('hidden');
+    this.audio.playEnd();
+  }
+}
+
+/* ── boot ─────────────────────────────────────────────────────────────────────── */
+const canvas=$('cv'), ctx=canvas.getContext('2d');
+const audio=new AudioManager();
+const ui=new UIManager(canvas,ctx,audio);
+window.__ui=ui;
+if(window.opener) ui._goSetup();
+</script>
+</body>
+</html>
