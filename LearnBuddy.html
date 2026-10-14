@@ -260,6 +260,11 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--ac
         <div class="gdesc">Blow to lift your hot air balloon — steer with S1/S2, dodge clouds and collect stars!</div>
         <span class="badge" style="background:#1a88cc;color:#fff">Blow Sensor</span>
       </div>
+      <div class="game-card" id="breathBeatsCard" onclick="openBreathBeatsGame()">
+        <div class="gname">🎵 Breath Beats</div>
+        <div class="gdesc">Blow soft, medium or hard to match musical notes — free play or beat match mode!</div>
+        <span class="badge" style="background:#7722bb;color:#fff">Blow Sensor</span>
+      </div>
     </div>
   </div>
 
@@ -726,13 +731,20 @@ function openSkyVoyageGame() {
     'width=1024,height=660,resizable=yes,scrollbars=no');
   if (_skyVoyageWin) _skyVoyageWin.focus();
 }
+let _breathBeatsWin = null;
+function openBreathBeatsGame() {
+  _breathBeatsWin = window.open('games/breath_beats.html', 'breath_beats',
+    'width=1024,height=660,resizable=yes,scrollbars=no');
+  if (_breathBeatsWin) _breathBeatsWin.focus();
+}
 
 // ── Pressure sensor relay (HX710B → game windows) ────────────────────────────
 function handlePressure(raw, delta, pct) {
   const msg = { type:'pressure', raw, delta, pct };
-  if (_skyVoyageWin  && !_skyVoyageWin.closed)  _skyVoyageWin.postMessage(msg,  '*');
-  if (_balloonWin    && !_balloonWin.closed)     _balloonWin.postMessage(msg,    '*');
-  if (_ballRailWin   && !_ballRailWin.closed)    _ballRailWin.postMessage(msg,   '*');
+  if (_skyVoyageWin   && !_skyVoyageWin.closed)   _skyVoyageWin.postMessage(msg,   '*');
+  if (_balloonWin     && !_balloonWin.closed)      _balloonWin.postMessage(msg,     '*');
+  if (_ballRailWin    && !_ballRailWin.closed)     _ballRailWin.postMessage(msg,    '*');
+  if (_breathBeatsWin && !_breathBeatsWin.closed)  _breathBeatsWin.postMessage(msg, '*');
 }
 
 // ── Send hardware command (LED / display) via active transport ────────────────
