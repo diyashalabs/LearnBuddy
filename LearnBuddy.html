@@ -265,6 +265,21 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--ac
         <div class="gdesc">Blow soft, medium or hard to match musical notes — free play or beat match mode!</div>
         <span class="badge" style="background:#7722bb;color:#fff">Blow Sensor</span>
       </div>
+      <div class="game-card" id="letterCatchCard" onclick="openLetterCatchGame()">
+        <div class="gname">🔤 Letter Catch</div>
+        <div class="gdesc">Blow at the right strength to catch the called letter as it floats by!</div>
+        <span class="badge" style="background:#1a66cc;color:#fff">Blow Sensor</span>
+      </div>
+      <div class="game-card" id="colorCatchCard" onclick="openColorCatchGame()">
+        <div class="gname">🌈 Color Catch</div>
+        <div class="gdesc">Hear a color name and blow to the right height to catch the matching star!</div>
+        <span class="badge" style="background:#22aa44;color:#fff">Blow Sensor</span>
+      </div>
+      <div class="game-card" id="numberCatchCard" onclick="openNumberCatchGame()">
+        <div class="gname">🔢 Number Catch</div>
+        <div class="gdesc">Blow to intercept the called number — great for counting and breath control!</div>
+        <span class="badge" style="background:#cc6600;color:#fff">Blow Sensor</span>
+      </div>
     </div>
   </div>
 
@@ -737,6 +752,24 @@ function openBreathBeatsGame() {
     'width=1024,height=660,resizable=yes,scrollbars=no');
   if (_breathBeatsWin) _breathBeatsWin.focus();
 }
+let _letterCatchWin = null;
+function openLetterCatchGame() {
+  _letterCatchWin = window.open('games/edu_catcher.html#letters', 'edu_letters',
+    'width=1024,height=660,resizable=yes,scrollbars=no');
+  if (_letterCatchWin) _letterCatchWin.focus();
+}
+let _colorCatchWin = null;
+function openColorCatchGame() {
+  _colorCatchWin = window.open('games/edu_catcher.html#colors', 'edu_colors',
+    'width=1024,height=660,resizable=yes,scrollbars=no');
+  if (_colorCatchWin) _colorCatchWin.focus();
+}
+let _numberCatchWin = null;
+function openNumberCatchGame() {
+  _numberCatchWin = window.open('games/edu_catcher.html#numbers', 'edu_numbers',
+    'width=1024,height=660,resizable=yes,scrollbars=no');
+  if (_numberCatchWin) _numberCatchWin.focus();
+}
 
 // ── Pressure sensor relay (HX710B → game windows) ────────────────────────────
 function handlePressure(raw, delta, pct) {
@@ -745,6 +778,9 @@ function handlePressure(raw, delta, pct) {
   if (_balloonWin     && !_balloonWin.closed)      _balloonWin.postMessage(msg,     '*');
   if (_ballRailWin    && !_ballRailWin.closed)     _ballRailWin.postMessage(msg,    '*');
   if (_breathBeatsWin && !_breathBeatsWin.closed)  _breathBeatsWin.postMessage(msg, '*');
+  if (_letterCatchWin && !_letterCatchWin.closed)  _letterCatchWin.postMessage(msg, '*');
+  if (_colorCatchWin  && !_colorCatchWin.closed)   _colorCatchWin.postMessage(msg,  '*');
+  if (_numberCatchWin && !_numberCatchWin.closed)  _numberCatchWin.postMessage(msg, '*');
 }
 
 // ── Send hardware command (LED / display) via active transport ────────────────
