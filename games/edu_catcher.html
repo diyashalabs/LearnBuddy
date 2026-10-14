@@ -464,10 +464,12 @@ class UIManager{
   constructor(canvas,ctx,audio){
     this.canvas=canvas;this.ctx=ctx;this.audio=audio;this.game=null;
     this._subj='letters';this._diff='easy';
-    // detect URL hash pre-selection
+    // detect URL hash pre-selection (#letters / #colors / #numbers)
     const hash=location.hash.slice(1);
-    if(SUBJ_KEYS.includes(hash)){this._subj=hash;$('subjRow').style.display='none';}
-    this._buildSel('subjBtns',SUBJ_KEYS.map(k=>[k,SUBJECTS[k].title]),'sj',v=>{this._subj=v;this._updateTitle();},'letters');
+    const initSubj=SUBJ_KEYS.includes(hash)?hash:'letters';
+    this._subj=initSubj;
+    if(initSubj!=='letters')$('subjRow').style.display='none';
+    this._buildSel('subjBtns',SUBJ_KEYS.map(k=>[k,SUBJECTS[k].title]),'sj',v=>{this._subj=v;this._updateTitle();},initSubj);
     this._buildSel('diffBtns',[['easy','Easy 😊'],['medium','Medium 😄'],['hard','Hard 😤']],'df',v=>this._diff=v,'easy');
     this._updateTitle();
     this._bind();
