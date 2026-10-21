@@ -69,8 +69,10 @@
       <div class="opt-label">Subject</div>
       <div class="opt-row" id="subjBtns"></div>
     </div>
-    <div class="opt-label">Difficulty</div>
-    <div class="opt-row" id="diffBtns"></div>
+    <div id="diffRow">
+      <div class="opt-label">Difficulty</div>
+      <div class="opt-row" id="diffBtns"></div>
+    </div>
     <p class="sub" style="margin-top:10px;font-size:.76rem">
       <strong>Blow soft</strong> = catch bottom &nbsp;|&nbsp; <strong>Blow hard</strong> = catch top<br>
       Spacebar = blow medium (keyboard mode)
@@ -154,20 +156,23 @@ const SUBJECTS = {
       ];
       return diff==='easy'?all.slice(0,3):diff==='medium'?all.slice(0,4):all;
     },
-    prompt:it=>`Catch the ${it.label} one`,
-    drawItem(ctx,x,y,r,it,pulse){
-      // star shape
-      ctx.fillStyle=it.color;
-      ctx.beginPath();
-      for(let i=0;i<5;i++){
-        const ao=-Math.PI/2+i*(TAU/5), ai=ao+Math.PI/5;
-        i===0?ctx.moveTo(x+r*Math.cos(ao),y+r*Math.sin(ao)):ctx.lineTo(x+r*Math.cos(ao),y+r*Math.sin(ao));
-        ctx.lineTo(x+r*.42*Math.cos(ai),y+r*.42*Math.sin(ai));
-      }
-      ctx.closePath(); ctx.fill();
-      ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2; ctx.stroke();
-      ctx.fillStyle='#fff'; ctx.font=`bold ${Math.round(r*.65)}px system-ui`;
-      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(it.label,x,y+1);
+    prompt:it=>`Catch the ${it.label} bubble`,
+    drawItem(ctx,x,y,r,it){
+      // glossy bubble — no text, just color
+      const g=ctx.createRadialGradient(x-r*.3,y-r*.35,r*.04,x,y,r);
+      g.addColorStop(0,'rgba(255,255,255,0.72)');
+      g.addColorStop(0.22,it.color+'ee');
+      g.addColorStop(1,it.color+'66');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill();
+      // rim
+      ctx.strokeStyle='rgba(255,255,255,0.45)'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.stroke();
+      // gloss highlight
+      ctx.fillStyle='rgba(255,255,255,0.52)';
+      ctx.beginPath(); ctx.ellipse(x-r*.24,y-r*.28,r*.22,r*.13,-0.4,0,TAU); ctx.fill();
+      // small secondary shine
+      ctx.fillStyle='rgba(255,255,255,0.18)';
+      ctx.beginPath(); ctx.ellipse(x+r*.2,y+r*.22,r*.1,r*.06,0.6,0,TAU); ctx.fill();
     }
   },
   numbers: {
@@ -191,6 +196,7 @@ const SUBJECTS = {
 
 /* ── difficulty ──────────────────────────────────────────────────────────────── */
 const DIFF = {
+  learn:  { speed:62,  lanes:1, waveGap:2.4, hint:true  },
   easy:   { speed:88,  lanes:2, waveGap:1.4, hint:true  },
   medium: { speed:130, lanes:3, waveGap:1.1, hint:false },
   hard:   { speed:175, lanes:4, waveGap:0.8, hint:false },
@@ -464,13 +470,16 @@ class UIManager{
   constructor(canvas,ctx,audio){
     this.canvas=canvas;this.ctx=ctx;this.audio=audio;this.game=null;
     this._subj='letters';this._diff='easy';
-    // detect URL hash pre-selection (#letters / #colors / #numbers)
-    const hash=location.hash.slice(1);
-    const initSubj=SUBJ_KEYS.includes(hash)?hash:'letters';
-    this._subj=initSubj;
-    if(initSubj!=='letters')$('subjRow').style.display='none';
+    // hash format: #subject  or  #subject_diff  e.g. #colors_learn
+    const parts=location.hash.slice(1).split('_');
+    const DIFF_KEYS=['learn','easy','medium','hard'];
+    const initSubj=SUBJ_KEYS.includes(parts[0])?parts[0]:'letters';
+    const initDiff=DIFF_KEYS.includes(parts[1])?parts[1]:(DIFF_KEYS.includes(parts[0])?parts[0]:'easy');
+    this._subj=initSubj; this._diff=initDiff;
+    if(parts.length>0&&parts[0]!=='')$('subjRow').style.display='none';
+    if(parts.length>1)$('diffRow').style.display='none'; // hide diff picker when pre-set
     this._buildSel('subjBtns',SUBJ_KEYS.map(k=>[k,SUBJECTS[k].title]),'sj',v=>{this._subj=v;this._updateTitle();},initSubj);
-    this._buildSel('diffBtns',[['easy','Easy 😊'],['medium','Medium 😄'],['hard','Hard 😤']],'df',v=>this._diff=v,'easy');
+    this._buildSel('diffBtns',[['learn','Learn 🌱'],['easy','Easy 😊'],['medium','Medium 😄'],['hard','Hard 😤']],'df',v=>this._diff=v,initDiff);
     this._updateTitle();
     this._bind();
     this._resize();window.addEventListener('resize',()=>this._resize());

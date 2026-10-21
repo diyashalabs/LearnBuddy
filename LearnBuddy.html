@@ -230,6 +230,31 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--ac
         <div class="gdesc">Roll the belan back and forth to make rotis before time runs out</div>
         <span class="badge" style="background:#ff9f4d;color:#3d1200">Always On</span>
       </div>
+      <div class="game-card" id="roti2Card" onclick="openRoti2Game()">
+        <div class="gname">🫓 Roti Maker 2</div>
+        <div class="gdesc">Improved kitchen, roti stack &amp; richer visuals — roll to cook!</div>
+        <span class="badge" style="background:#e05010;color:#fff">Always On</span>
+      </div>
+      <div class="game-card" id="f1RaceCard" onclick="openF1RaceGame()">
+        <div class="gname">🏎 F1 Speed Rush</div>
+        <div class="gdesc">Blow to accelerate up to 317 km/h, steer with IR sensors, overtake rivals!</div>
+        <span class="badge" style="background:#cc0000;color:#fff">Blow + IR</span>
+      </div>
+      <div class="game-card" id="parkRideCard" onclick="openParkRideGame()">
+        <div class="gname">🚲 Park Ride</div>
+        <div class="gdesc">Blow to pedal faster, use IR sensors to steer — collect stars on the trail!</div>
+        <span class="badge" style="background:#5ba86e;color:#fff">Blow + IR</span>
+      </div>
+      <div class="game-card" id="sargamCard" onclick="openSargamGame()">
+        <div class="gname">🎹 Sa Re Ga Ma</div>
+        <div class="gdesc">Blow gently for Sa, harder for Re Ga Ma… play sargam notes on a piano keyboard!</div>
+        <span class="badge" style="background:#8B1A1A;color:#FFD070">Blow</span>
+      </div>
+      <div class="game-card" id="airLiftCard" onclick="openAirLiftGame()">
+        <div class="gname">💨 Air Lift</div>
+        <div class="gdesc">Blow to lift red, blue and yellow balls up their glass tubes — hold them all high!</div>
+        <span class="badge" style="background:#1848A0;color:#80C8FF">Blow</span>
+      </div>
       <div class="game-card" id="danceCard" onclick="openDanceGame()">
         <div class="gname">💃 Dance Dance</div>
         <div class="gdesc">Wave both hands to keep the dancer grooving — score how long you dance!</div>
@@ -270,9 +295,14 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--ac
         <div class="gdesc">Blow at the right strength to catch the called letter as it floats by!</div>
         <span class="badge" style="background:#1a66cc;color:#fff">Blow Sensor</span>
       </div>
+      <div class="game-card" id="colorLearnCard" onclick="openColorLearnGame()">
+        <div class="gname">🫧 Color Learn</div>
+        <div class="gdesc">One bubble at a time — hear the color, blow to catch it. Perfect for beginners!</div>
+        <span class="badge" style="background:#22aa44;color:#0f1117">Blow · Learn</span>
+      </div>
       <div class="game-card" id="colorCatchCard" onclick="openColorCatchGame()">
         <div class="gname">🌈 Color Catch</div>
-        <div class="gdesc">Hear a color name and blow to the right height to catch the matching star!</div>
+        <div class="gdesc">Hear a color name and blow to the right height to catch the matching bubble!</div>
         <span class="badge" style="background:#22aa44;color:#fff">Blow Sensor</span>
       </div>
       <div class="game-card" id="numberCatchCard" onclick="openNumberCatchGame()">
@@ -698,6 +728,10 @@ function handleIR(sensor, value) {
     _zapItWin.postMessage({type:'ir', s:sensor, v:value}, '*');
   if (_skyVoyageWin && !_skyVoyageWin.closed)
     _skyVoyageWin.postMessage({type:'ir', s:sensor, v:value}, '*');
+  if (_parkRideWin && !_parkRideWin.closed)
+    _parkRideWin.postMessage({type:'ir', s:sensor, v:value}, '*');
+  if (_f1Win && !_f1Win.closed)
+    _f1Win.postMessage({type:'ir', s:sensor, v:value}, '*');
 }
 function openExplorerGame() {
   _explorerWin = window.open('games/explorer_run.html', 'explorer_run',
@@ -709,6 +743,36 @@ function openRotiGame() {
   _rotiWin = window.open('games/roti_maker.html', 'roti_maker',
     'width=900,height=620,resizable=yes,scrollbars=no');
   if (_rotiWin) _rotiWin.focus();
+}
+let _roti2Win = null;
+function openRoti2Game() {
+  _roti2Win = window.open('games/roti_maker2.html', 'roti_maker2',
+    'width=1024,height=660,resizable=yes,scrollbars=no');
+  if (_roti2Win) _roti2Win.focus();
+}
+let _f1Win = null;
+function openF1RaceGame() {
+  _f1Win = window.open('games/f1_race.html', 'f1_race',
+    'width=1024,height=660,resizable=yes,scrollbars=no');
+  if (_f1Win) _f1Win.focus();
+}
+let _parkRideWin = null;
+function openParkRideGame() {
+  _parkRideWin = window.open('games/park_ride/index.html', 'park_ride',
+    'width=1024,height=660,resizable=yes,scrollbars=no');
+  if (_parkRideWin) _parkRideWin.focus();
+}
+let _sargamWin = null;
+function openSargamGame() {
+  _sargamWin = window.open('games/sargam.html', 'sargam',
+    'width=1100,height=680,resizable=yes,scrollbars=no');
+  if (_sargamWin) _sargamWin.focus();
+}
+let _airLiftWin = null;
+function openAirLiftGame() {
+  _airLiftWin = window.open('games/air_lift.html', 'air_lift',
+    'width=1000,height=680,resizable=yes,scrollbars=no');
+  if (_airLiftWin) _airLiftWin.focus();
 }
 let _danceWin = null;
 function openDanceGame() {
@@ -758,6 +822,12 @@ function openLetterCatchGame() {
     'width=1024,height=660,resizable=yes,scrollbars=no');
   if (_letterCatchWin) _letterCatchWin.focus();
 }
+let _colorLearnWin = null;
+function openColorLearnGame() {
+  _colorLearnWin = window.open('games/edu_catcher.html#colors_learn', 'edu_color_learn',
+    'width=1024,height=660,resizable=yes,scrollbars=no');
+  if (_colorLearnWin) _colorLearnWin.focus();
+}
 let _colorCatchWin = null;
 function openColorCatchGame() {
   _colorCatchWin = window.open('games/edu_catcher.html#colors', 'edu_colors',
@@ -779,8 +849,13 @@ function handlePressure(raw, delta, pct) {
   if (_ballRailWin    && !_ballRailWin.closed)     _ballRailWin.postMessage(msg,    '*');
   if (_breathBeatsWin && !_breathBeatsWin.closed)  _breathBeatsWin.postMessage(msg, '*');
   if (_letterCatchWin && !_letterCatchWin.closed)  _letterCatchWin.postMessage(msg, '*');
+  if (_colorLearnWin  && !_colorLearnWin.closed)   _colorLearnWin.postMessage(msg,  '*');
   if (_colorCatchWin  && !_colorCatchWin.closed)   _colorCatchWin.postMessage(msg,  '*');
   if (_numberCatchWin && !_numberCatchWin.closed)  _numberCatchWin.postMessage(msg, '*');
+  if (_parkRideWin    && !_parkRideWin.closed)      _parkRideWin.postMessage(msg,    '*');
+  if (_f1Win          && !_f1Win.closed)            _f1Win.postMessage(msg,          '*');
+  if (_sargamWin      && !_sargamWin.closed)        _sargamWin.postMessage(msg,      '*');
+  if (_airLiftWin     && !_airLiftWin.closed)       _airLiftWin.postMessage(msg,     '*');
 }
 
 // ── Send hardware command (LED / display) via active transport ────────────────

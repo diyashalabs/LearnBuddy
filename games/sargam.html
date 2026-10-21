@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sa Re Ga Ma</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0308;font-family:"Segoe UI",system-ui,sans-serif;}
+canvas{display:block;width:100vw;height:100vh;}
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;}
+.overlay.dim{background:rgba(0,0,0,.72);}
+.hidden{display:none!important;}
+.card{background:linear-gradient(155deg,#1e0c14,#2a1020);border-radius:24px;
+  max-width:500px;width:94%;
+  box-shadow:0 0 0 1.5px rgba(255,150,80,.3),0 30px 80px rgba(0,0,0,.7);
+  overflow:hidden;}
+.card-head{background:linear-gradient(120deg,#8B1A1A,#5C0E0E);padding:22px 28px 18px;text-align:center;}
+.card-head h1{font-size:1.8rem;font-weight:900;color:#FFD070;letter-spacing:2px;}
+.card-head .sub{font-size:.82rem;color:rgba(255,200,120,.6);margin-top:4px;letter-spacing:.1em;}
+.card-body{padding:22px 26px 28px;}
+.opt-label{font-size:.6rem;font-weight:800;color:rgba(255,160,60,.65);
+  text-transform:uppercase;letter-spacing:.12em;margin:14px 0 8px;}
+.opt-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+.btn{font-family:inherit;font-weight:800;border:none;border-radius:12px;cursor:pointer;
+  padding:10px 18px;font-size:.88rem;color:#fff;
+  background:linear-gradient(180deg,#9B3010,#6B1808);
+  box-shadow:0 4px 0 #3A0C04,0 6px 18px rgba(0,0,0,.4);
+  transition:transform .08s,box-shadow .08s;letter-spacing:.04em;}
+.btn:active{transform:translateY(2px);box-shadow:0 2px 0 #3A0C04;}
+.btn.sel{background:linear-gradient(180deg,#D45010,#A02808);box-shadow:0 4px 0 #5A1400,0 0 0 2px #FF7030;}
+.btn.big{font-size:1.1rem;padding:14px 36px;border-radius:16px;width:100%;margin-top:18px;}
+.btn.green{background:linear-gradient(180deg,#2EAA44,#1A7830);box-shadow:0 4px 0 #0C4018;}
+.btn.sm{font-size:.76rem;padding:7px 12px;border-radius:10px;}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="setupOv" class="overlay dim">
+  <div class="card">
+    <div class="card-head">
+      <h1>🎵 Sa Re Ga Ma</h1>
+      <div class="sub">BLOW TO PLAY · PRESSURE CONTROLS THE NOTE</div>
+    </div>
+    <div class="card-body">
+      <div class="opt-label">Mode</div>
+      <div class="opt-row" id="modeRow">
+        <button class="btn sel" data-mode="free">🎹 Free Play</button>
+        <button class="btn" data-mode="challenge">🎯 Tune Challenge</button>
+      </div>
+      <div id="tuneSection" style="display:none">
+        <div class="opt-label">Tune</div>
+        <div class="opt-row" id="tuneRow"></div>
+      </div>
+      <button class="btn big green" id="startBtn">▶ Start Playing</button>
+    </div>
+  </div>
+</div>
+
+<div id="resultOv" class="overlay dim hidden">
+  <div class="card">
+    <div class="card-head"><h1 id="resultTitle">Well Done!</h1></div>
+    <div class="card-body" style="text-align:center;">
+      <div id="stars" style="font-size:2.5rem;margin:12px 0;letter-spacing:4px;"></div>
+      <div id="resultScore" style="color:rgba(255,200,120,.9);font-size:1rem;margin-bottom:16px;line-height:1.6;"></div>
+      <button class="btn big" id="replayBtn">↺ Play Again</button>
+      <button class="btn big green" id="newGameBtn" style="margin-top:8px;">🎹 New Game</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ── Notes ─────────────────────────────────────────────────── */
+const NOTES = [
+  {name:'Sa',  dev:'सा', freq:261.63, pMin:3,  pMax:16,  col:'#E84040'},
+  {name:'Re',  dev:'रे', freq:293.66, pMin:16, pMax:29,  col:'#E87830'},
+  {name:'Ga',  dev:'ग',  freq:329.63, pMin:29, pMax:42,  col:'#C8B800'},
+  {name:'Ma',  dev:'म',  freq:349.23, pMin:42, pMax:55,  col:'#28AA44'},
+  {name:'Pa',  dev:'प',  freq:392.00, pMin:55, pMax:68,  col:'#2878D0'},
+  {name:'Dha', dev:'ध',  freq:440.00, pMin:68, pMax:80,  col:'#6040C8'},
+  {name:'Ni',  dev:'नि', freq:493.88, pMin:80, pMax:91,  col:'#9828B8'},
+  {name:'Ṡa',  dev:'Ṡ',  freq:523.25, pMin:91, pMax:100, col:'#C82880'},
+];
+
+const TUNES = [
+  {name:'Scale ↑',  seq:[0,1,2,3,4,5,6,7]},
+  {name:'Scale ↓',  seq:[7,6,5,4,3,2,1,0]},
+  {name:'Sa Re Ga', seq:[0,1,2,1,0,2,1,0,3,2,1,0]},
+  {name:'Twinkle',  seq:[0,0,4,4,5,5,4,3,3,2,2,1,1,0]},
+  {name:'Up Down',  seq:[0,1,2,3,4,5,6,7,6,5,4,3,2,1,0]},
+];
+
+function pctToNote(pct, curNote) {
+  if (!pct || pct < NOTES[0].pMin) return -1;
+  const DEAD = 4; // hysteresis dead-band: stay in current zone until clearly past boundary
+  if (curNote >= 0) {
+    const n = NOTES[curNote];
+    const lo = n.pMin - DEAD;
+    const hi = curNote === NOTES.length - 1 ? 101 : n.pMax + DEAD;
+    if (pct >= lo && pct < hi) return curNote;
+  }
+  for (let i = 0; i < NOTES.length; i++)
+    if (pct >= NOTES[i].pMin && pct < NOTES[i].pMax) return i;
+  return NOTES.length - 1;
+}
+
+/* ── Audio ─────────────────────────────────────────────────── */
+class AudioManager {
+  constructor() { this._ac=null; this._mg=null; this._oscs=null; this.cur=-1; this._gv=0; }
+  _init() {
+    if (this._ac) return;
+    this._ac = new (window.AudioContext||window.webkitAudioContext)();
+    this._mg = this._ac.createGain();
+    this._mg.gain.value = 0;
+    this._mg.connect(this._ac.destination);
+    // Three oscillators always running — frequency updated per note, gain via tick()
+    const mk=(type,vol)=>{
+      const o=this._ac.createOscillator(), g=this._ac.createGain();
+      o.type=type; o.frequency.value=261.63; g.gain.value=vol;
+      o.connect(g); g.connect(this._mg); o.start(); return o;
+    };
+    this._oscs=[mk('triangle',1.0), mk('triangle',0.28), mk('sine',0.1)];
+    this._gv=0;
+  }
+  resume() { this._init(); if (this._ac.state==='suspended') this._ac.resume(); }
+  // tick() called every RAF frame — drives gain smoothly without Web Audio scheduling
+  tick(dt) {
+    if (!this._ac) return;
+    const target = this.cur>=0 ? 0.72 : 0;
+    if (target > this._gv) this._gv = Math.min(target, this._gv + dt*14); // ~50ms attack
+    else                    this._gv = Math.max(target, this._gv - dt*4);  // ~180ms release
+    this._mg.gain.value = this._gv;
+  }
+  playNote(ni) {
+    if (!this._ac) return;
+    if (this._ac.state==='suspended') this._ac.resume();
+    if (ni===this.cur) return;
+    this.cur=ni;
+    if (ni>=0) {
+      const f=NOTES[ni].freq;
+      this._oscs[0].frequency.value=f;
+      this._oscs[1].frequency.value=f*2;
+      this._oscs[2].frequency.value=f*3;
+    }
+  }
+  stopNote() { this.playNote(-1); }
+  ping(f,v=0.3) {
+    if (!this._ac) return;
+    if (this._ac.state==='suspended') this._ac.resume();
+    const t=this._ac.currentTime, o=this._ac.createOscillator(), g=this._ac.createGain();
+    o.type='sine'; o.frequency.value=f;
+    g.gain.setValueAtTime(v,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3);
+    o.connect(g); g.connect(this._ac.destination); o.start(t); o.stop(t+0.35);
+  }
+  playHit()  { this.ping(1047,0.28); }
+  playMiss() { this.ping(200,0.22);  }
+}
+
+/* ── Particles ─────────────────────────────────────────────── */
+class Particles {
+  constructor(){ this.items=[]; }
+  burst(x,y,col,n=10) {
+    const S=['♩','♪','♫','♬','✦'];
+    for(let i=0;i<n;i++){
+      const a=-Math.PI*.5+(Math.random()-.5)*Math.PI*.9, sp=50+Math.random()*110;
+      this.items.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
+        t:0,life:.7+Math.random()*.5,col,sz:14+Math.random()*10,
+        sym:S[Math.floor(Math.random()*S.length)]});
+    }
+  }
+  update(dt) {
+    for(const p of this.items){p.t+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=60*dt;}
+    this.items=this.items.filter(p=>p.t<p.life);
+  }
+  draw(ctx) {
+    ctx.save();
+    for(const p of this.items){
+      const a=Math.pow(1-p.t/p.life,0.8);
+      ctx.globalAlpha=a; ctx.fillStyle=p.col;
+      ctx.font=`${Math.round(p.sz)}px serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(p.sym,p.x,p.y);
+    }
+    ctx.globalAlpha=1; ctx.restore();
+  }
+}
+
+/* ── Challenge ─────────────────────────────────────────────── */
+class Challenge {
+  constructor(ti) {
+    this.seq=TUNES[ti].seq; this.idx=0;
+    this.holdT=0; this.missT=0; this.hits=0; this.done=false;
+    this.hitFlash=0; this.missFlash=0;
+  }
+  get target(){ return this.seq[this.idx]; }
+  get holdFrac(){ return Math.min(1,this.holdT/0.45); }
+  step(dt,an) {
+    if(this.done) return;
+    this.hitFlash=Math.max(0,this.hitFlash-dt*4);
+    this.missFlash=Math.max(0,this.missFlash-dt*4);
+    if(an===this.target){
+      this.holdT+=dt; this.missT=0;
+      if(this.holdT>=0.45){this.hits++;this.hitFlash=1;audio.playHit();this._next();}
+    } else {
+      this.missT+=dt; this.holdT=0;
+      if(this.missT>=1.8){this.missFlash=1;audio.playMiss();this._next();}
+    }
+  }
+  _next(){this.holdT=0;this.missT=0;if(++this.idx>=this.seq.length)this.done=true;}
+  get stars(){const r=this.hits/this.seq.length;return r>=.85?3:r>=.6?2:r>=.3?1:0;}
+}
+
+/* ── Canvas & state ─────────────────────────────────────────── */
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const audio=new AudioManager(), parts=new Particles();
+let W,H;
+function resize(){
+  const dpr=window.devicePixelRatio||1;
+  W=cv.clientWidth||innerWidth; H=cv.clientHeight||innerHeight;
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+new ResizeObserver(resize).observe(cv);
+resize();
+
+let rawSensorPct=0, sensorPct=0, challenge=null, selectedMode='free', selectedTune=0;
+let activeNote=-1, prevNote=-1;
+const glow=Array(8).fill(0);
+
+// Sensor diagnostics
+let sensorEverReceived=false, lastSensorMs=0, rawPctHistory=[];
+
+/* ── Sensor input ───────────────────────────────────────────── */
+window.addEventListener('message',e=>{
+  const d=e.data; if(!d) return;
+  if(d.type==='pressure'){
+    rawSensorPct=typeof d.pct==='number'?d.pct:0;
+    sensorEverReceived=true;
+    lastSensorMs=Date.now();
+    // Keep last 40 raw samples for the mini sparkline
+    rawPctHistory.push(rawSensorPct);
+    if(rawPctHistory.length>40) rawPctHistory.shift();
+  }
+});
+// Keyboard test: 1-8 keys
+const _kh={};
+window.addEventListener('keydown',e=>{
+  if(e.repeat) return;
+  const n=parseInt(e.key);
+  if(n>=1&&n<=8){_kh[e.key]=true; rawSensorPct=NOTES[n-1].pMin+4; sensorPct=rawSensorPct; audio.resume();}
+  if(e.key===' '){rawSensorPct=0; sensorPct=0;}
+});
+window.addEventListener('keyup',e=>{
+  const n=parseInt(e.key);
+  if(n>=1&&n<=8){_kh[e.key]=false; if(!Object.values(_kh).some(Boolean)){rawSensorPct=0; sensorPct=0;}}
+});
+// Touch on canvas keys
+cv.addEventListener('pointerdown',e=>{
+  audio.resume();
+  const pt=H*(challenge?0.40:0.36);
+  if(e.clientY<pt) return;
+  const KW=(W*0.86)/8, sx=W*0.07;
+  const ki=Math.floor((e.clientX-sx)/KW);
+  if(ki>=0&&ki<8){rawSensorPct=NOTES[ki].pMin+4; sensorPct=rawSensorPct;}
+});
+cv.addEventListener('pointerup',()=>{rawSensorPct=0; sensorPct=0;});
+
+/* ── UI wiring ─────────────────────────────────────────────── */
+const $=id=>document.getElementById(id);
+TUNES.forEach((t,i)=>{
+  const b=document.createElement('button');
+  b.className='btn sm'+(i===0?' sel':''); b.textContent=t.name;
+  b.addEventListener('click',()=>{
+    selectedTune=i;
+    $('tuneRow').querySelectorAll('.btn').forEach((x,j)=>x.classList.toggle('sel',j===i));
+  });
+  $('tuneRow').appendChild(b);
+});
+$('modeRow').addEventListener('click',e=>{
+  const b=e.target.closest('[data-mode]'); if(!b) return;
+  selectedMode=b.dataset.mode;
+  $('modeRow').querySelectorAll('.btn').forEach(x=>x.classList.toggle('sel',x===b));
+  $('tuneSection').style.display=selectedMode==='challenge'?'':'none';
+  audio.resume();
+});
+$('startBtn').addEventListener('click',()=>{
+  audio.resume();
+  challenge=selectedMode==='challenge'?new Challenge(selectedTune):null;
+  $('setupOv').classList.add('hidden');
+});
+$('replayBtn').addEventListener('click',()=>{
+  audio.resume();
+  challenge=new Challenge(selectedTune);
+  $('resultOv').classList.add('hidden');
+});
+$('newGameBtn').addEventListener('click',()=>{
+  $('resultOv').classList.add('hidden');
+  $('setupOv').classList.remove('hidden');
+  challenge=null; audio.stopNote();
+});
+
+/* ── Drawing helpers ─────────────────────────────────────────── */
+function rr(x,y,w,h,r){
+  ctx.beginPath(); r=Math.min(r,w/2,h/2);
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+
+/* ── Background ──────────────────────────────────────────────── */
+function drawBg(){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0a0308'); g.addColorStop(1,'#160610');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  const rg=ctx.createRadialGradient(W/2,H*.35,0,W/2,H*.35,H*.7);
+  rg.addColorStop(0,'rgba(100,20,40,.14)'); rg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=rg; ctx.fillRect(0,0,W,H);
+}
+
+/* ── Top title ───────────────────────────────────────────────── */
+function drawTitle(){
+  const fh=Math.min(H*.044,28);
+  ctx.fillStyle='rgba(255,208,80,.88)';
+  ctx.font=`900 ${fh}px "Segoe UI",sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillText('🎵 Sa Re Ga Ma',W/2,H*.012);
+  if(challenge){
+    ctx.fillStyle='rgba(255,255,255,.55)';
+    ctx.font=`700 ${fh*.65}px "Segoe UI",sans-serif`;
+    ctx.textAlign='right';
+    ctx.fillText(`✓ ${challenge.hits} / ${challenge.seq.length}`,W*.97,H*.018);
+  }
+}
+
+/* ── Free play note display ─────────────────────────────────── */
+function drawFreeDisplay(){
+  const cy=H*.2;
+  if(activeNote<0){
+    ctx.fillStyle='rgba(255,255,255,.28)';
+    ctx.font=`500 ${Math.min(H*.028,18)}px "Segoe UI",sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('Blow gently for Sa · blow harder for Ṡa',W/2,cy);
+    return;
+  }
+  const n=NOTES[activeNote];
+  ctx.save();
+  ctx.shadowColor=n.col; ctx.shadowBlur=40;
+  ctx.fillStyle=n.col;
+  ctx.font=`900 ${Math.min(H*.13,88)}px "Segoe UI",sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(n.name,W/2,cy-H*.015);
+  ctx.restore();
+  ctx.fillStyle='rgba(255,255,255,.6)';
+  ctx.font=`600 ${Math.min(H*.055,38)}px "Segoe UI",sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillText(n.dev,W/2,cy+H*.06);
+}
+
+/* ── Challenge display ───────────────────────────────────────── */
+function drawChallengeDisplay(pt){
+  if(!challenge||challenge.done) return;
+  // Flash overlays
+  if(challenge.hitFlash>0){ctx.fillStyle=`rgba(60,255,60,${challenge.hitFlash*.12})`;ctx.fillRect(0,0,W,H);}
+  if(challenge.missFlash>0){ctx.fillStyle=`rgba(255,40,40,${challenge.missFlash*.12})`;ctx.fillRect(0,0,W,H);}
+
+  const ti=challenge.target, n=NOTES[ti];
+  const r=Math.min(H*.1,W*.09), cy=H*.21;
+
+  // Label
+  ctx.fillStyle='rgba(255,255,255,.45)';
+  ctx.font=`600 ${Math.min(H*.023,15)}px "Segoe UI",sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='bottom';
+  ctx.fillText('▶ PLAY THIS NOTE',W/2,cy-r-8);
+
+  // Glow ring
+  ctx.save(); ctx.shadowColor=n.col; ctx.shadowBlur=28+challenge.holdFrac*18;
+  ctx.fillStyle=n.col;
+  ctx.beginPath(); ctx.arc(W/2,cy,r,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // Inner gradient
+  const ig=ctx.createRadialGradient(W/2-r*.2,cy-r*.2,0,W/2,cy,r);
+  ig.addColorStop(0,'rgba(255,255,255,.32)'); ig.addColorStop(1,'rgba(0,0,0,.18)');
+  ctx.fillStyle=ig; ctx.beginPath(); ctx.arc(W/2,cy,r,0,Math.PI*2); ctx.fill();
+
+  // Note name + devanagari
+  ctx.fillStyle='#fff';
+  ctx.font=`900 ${r*.62}px "Segoe UI",sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(n.name,W/2,cy-r*.08);
+  ctx.fillStyle='rgba(255,255,255,.72)';
+  ctx.font=`600 ${r*.34}px "Segoe UI",sans-serif`;
+  ctx.fillText(n.dev,W/2,cy+r*.36);
+
+  // Hold progress arc
+  if(challenge.holdFrac>0){
+    ctx.strokeStyle='rgba(255,255,255,.9)';
+    ctx.lineWidth=Math.max(3,r*.12); ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.arc(W/2,cy,r+r*.18,-Math.PI/2,-Math.PI/2+Math.PI*2*challenge.holdFrac);
+    ctx.stroke();
+  }
+
+  // Upcoming notes
+  for(let k=1;k<=4&&challenge.idx+k<challenge.seq.length;k++){
+    const ni=challenge.seq[challenge.idx+k], nn=NOTES[ni];
+    const nr=r*(.5-k*.05), nx=W/2+(r*2.3)+(r*1.55)*(k-1);
+    ctx.globalAlpha=.75-k*.12;
+    ctx.fillStyle=nn.col;
+    ctx.beginPath(); ctx.arc(nx,cy,nr,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff';
+    ctx.font=`700 ${nr*.72}px "Segoe UI",sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(nn.name,nx,cy);
+    ctx.globalAlpha=1;
+  }
+
+  // Dashed arrow to key
+  const KW=(W*.86)/8, sx=W*.07;
+  const kx=sx+ti*KW+KW/2;
+  const ay=cy+r+4, by2=pt-6;
+  if(by2>ay+12){
+    ctx.strokeStyle=n.col+'99'; ctx.lineWidth=2;
+    ctx.setLineDash([6,5]);
+    ctx.beginPath(); ctx.moveTo(W/2,ay);
+    ctx.quadraticCurveTo(W/2,(ay+by2)/2,kx,by2);
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=n.col+'99';
+    ctx.beginPath(); ctx.moveTo(kx,by2+8); ctx.lineTo(kx-6,by2); ctx.lineTo(kx+6,by2);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
+/* ── Piano ───────────────────────────────────────────────────── */
+function drawPiano(pt){
+  const KH=H*.96-pt, KW=(W*.86)/8, sx=W*.07;
+
+  // Wooden frame
+  const fg=ctx.createLinearGradient(sx-8,pt-6,sx-8,pt+KH+8);
+  fg.addColorStop(0,'#4A2810'); fg.addColorStop(.4,'#3A1F0A'); fg.addColorStop(1,'#1A0A04');
+  ctx.fillStyle=fg; rr(sx-10,pt-8,KW*8+20,KH+16,12); ctx.fill();
+  ctx.strokeStyle='rgba(180,120,60,.38)'; ctx.lineWidth=1.5;
+  rr(sx-10,pt-8,KW*8+20,KH+16,12); ctx.stroke();
+
+  for(let i=0;i<8;i++) drawKey(i,sx,KW,pt,KH);
+}
+
+function drawKey(i,sx,KW,pt,KH){
+  const GAP=3, x=sx+i*KW+GAP/2, kw=KW-GAP;
+  const n=NOTES[i], gl=glow[i];
+  const isAct=i===activeNote;
+  const isTgt=challenge&&!challenge.done&&i===challenge.target;
+  const pressY=isAct?5:0;
+
+  // Main body
+  if(gl>0){ctx.save();ctx.shadowColor=n.col;ctx.shadowBlur=gl*32;}
+  ctx.fillStyle=isAct?n.col:`hsl(36,${30+gl*28}%,${87+gl*8}%)`;
+  rr(x,pt+pressY,kw,KH-8-pressY,6); ctx.fill();
+  if(gl>0) ctx.restore();
+
+  // Top highlight
+  const tg=ctx.createLinearGradient(x,pt+pressY,x,pt+pressY+KH*.38);
+  tg.addColorStop(0,'rgba(255,255,255,.28)'); tg.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=tg; rr(x,pt+pressY,kw,KH*.38,6); ctx.fill();
+
+  // Bottom shadow
+  const bg=ctx.createLinearGradient(x,pt+KH*.62,x,pt+KH-8);
+  bg.addColorStop(0,'rgba(0,0,0,0)'); bg.addColorStop(1,'rgba(0,0,0,.38)');
+  ctx.fillStyle=bg; rr(x,pt+KH*.62,kw,KH*.38-8,6); ctx.fill();
+
+  // Depth at bottom
+  ctx.fillStyle='rgba(0,0,0,.48)'; ctx.fillRect(x,pt+KH-10,kw,8);
+
+  // Target border + hold bar
+  if(isTgt&&!isAct){
+    ctx.strokeStyle=n.col; ctx.lineWidth=2.5; ctx.setLineDash([7,5]);
+    rr(x+2,pt+2,kw-4,KH-12,5); ctx.stroke(); ctx.setLineDash([]);
+    const fp=challenge.holdFrac;
+    if(fp>0){
+      ctx.fillStyle=n.col;
+      rr(x+2,pt+KH-13,(kw-4)*fp,6,3); ctx.fill();
+    }
+  }
+
+  // Note name
+  const fs=Math.max(11,Math.min(KW*.22,28));
+  const ty=pt+KH*.5+pressY;
+  ctx.fillStyle=isAct?'#fff':'rgba(28,10,4,.88)';
+  ctx.font=`900 ${fs}px "Segoe UI",sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(n.name,x+kw/2,ty);
+
+  // Devanagari
+  ctx.fillStyle=isAct?'rgba(255,255,255,.72)':'rgba(28,10,4,.45)';
+  ctx.font=`500 ${fs*.72}px "Segoe UI",sans-serif`;
+  ctx.fillText(n.dev,x+kw/2,ty+fs*.9);
+
+  // Number hint at bottom
+  ctx.fillStyle=isAct?'rgba(255,255,255,.45)':'rgba(28,10,4,.28)';
+  ctx.font=`400 ${fs*.52}px "Segoe UI",sans-serif`;
+  ctx.fillText(i+1,x+kw/2,pt+KH-18);
+}
+
+/* ── Pressure bar ─────────────────────────────────────────────── */
+function drawPressureBar(pt){
+  const bw=Math.max(14,W*.034), bh=H*.96-pt;
+  const bx=W*.07+(W*.86)+6, by=pt;
+
+  // Background
+  ctx.fillStyle='rgba(0,0,0,.55)'; rr(bx,by,bw,bh,bw/2); ctx.fill();
+
+  // Note zones
+  for(let i=0;i<NOTES.length;i++){
+    const n=NOTES[i];
+    const zy=by+bh*(1-n.pMax/100), zh=bh*(n.pMax-n.pMin)/100;
+    ctx.fillStyle=n.col+(i===activeNote?'cc':'44');
+    rr(bx+1,zy,bw-2,zh,2); ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.3)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(bx,zy); ctx.lineTo(bx+bw,zy); ctx.stroke();
+  }
+
+  // Pressure fill
+  const pct=sensorPct||0;
+  if(pct>0){
+    const fh=bh*pct/100, fy=by+bh-fh;
+    const an=pctToNote(pct);
+    const fc=an>=0?NOTES[an].col:'#aaa';
+    const fg=ctx.createLinearGradient(0,fy,0,by+bh);
+    fg.addColorStop(0,fc+'ee'); fg.addColorStop(1,fc+'55');
+    ctx.fillStyle=fg; rr(bx+2,fy,bw-4,fh,bw/2-2); ctx.fill();
+    // Level marker
+    ctx.fillStyle='#fff'; ctx.fillRect(bx-2,fy-2,bw+4,4);
+  }
+}
+
+/* ── Sensor status panel (left side) ───────────────────────────── */
+function drawSensorStatus(pt){
+  const bw=Math.max(14,W*.034), bh=H*.96-pt;
+  const bx=W*.07-bw-6, by=pt;
+  const now=Date.now();
+  const fresh=sensorEverReceived&&(now-lastSensorMs<2000); // data in last 2s
+  const pct=sensorPct||0;
+
+  // Background panel
+  ctx.fillStyle='rgba(0,0,0,.55)'; rr(bx,by,bw,bh,bw/2); ctx.fill();
+
+  // SENSOR label (rotated, top area)
+  ctx.save();
+  ctx.fillStyle='rgba(255,255,255,.4)';
+  ctx.font=`700 ${Math.max(8,bw*.38)}px "Segoe UI",sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.translate(bx+bw/2, by+bh*.12);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('SENSOR', 0, 0);
+  ctx.restore();
+
+  // Status dot
+  const dotR=Math.max(5,bw*.3);
+  const dotY=by+bh*.2;
+  ctx.save();
+  ctx.shadowColor=fresh?'#44ff88':'#ff4444';
+  ctx.shadowBlur=fresh?12:6;
+  ctx.fillStyle=fresh?'#44ff88':'#ff3333';
+  ctx.beginPath(); ctx.arc(bx+bw/2,dotY,dotR,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // OK / NO label under dot
+  ctx.fillStyle=fresh?'rgba(68,255,136,.85)':'rgba(255,80,80,.75)';
+  ctx.font=`800 ${Math.max(7,bw*.32)}px "Segoe UI",sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillText(fresh?'OK':'NO', bx+bw/2, dotY+dotR+3);
+
+  // Raw pct value
+  ctx.fillStyle='rgba(255,255,255,.6)';
+  ctx.font=`700 ${Math.max(7,bw*.3)}px "Segoe UI",sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(Math.round(pct)+'%', bx+bw/2, by+bh*.38);
+
+  // Mini sparkline of recent pressure history (bottom 55%)
+  const sparkY=by+bh*.42, sparkH=bh*.52;
+  ctx.fillStyle='rgba(255,255,255,.08)';
+  ctx.fillRect(bx+1,sparkY,bw-2,sparkH);
+  if(rawPctHistory.length>1){
+    ctx.strokeStyle=fresh?'rgba(100,220,255,.7)':'rgba(255,100,100,.5)';
+    ctx.lineWidth=1.5; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath();
+    rawPctHistory.forEach((v,i)=>{
+      const lx=bx+1+(bw-2)*(i/(rawPctHistory.length-1||1));
+      const ly=sparkY+sparkH*(1-v/100);
+      i===0?ctx.moveTo(lx,ly):ctx.lineTo(lx,ly);
+    });
+    ctx.stroke();
+  }
+  // Current level bar inside sparkline
+  if(pct>0){
+    const fh2=sparkH*pct/100;
+    const an=pctToNote(pct);
+    ctx.fillStyle=an>=0?NOTES[an].col+'99':'#aaa9';
+    ctx.fillRect(bx+1,sparkY+sparkH-fh2,bw-2,fh2);
+  }
+}
+
+/* ── Main loop ───────────────────────────────────────────────── */
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+
+  // Direct mapping — no smoothing lag
+  sensorPct=rawSensorPct;
+
+  // Hysteresis: stay in current note zone until pressure clearly crosses the boundary
+  activeNote=pctToNote(sensorPct, activeNote);
+  for(let i=0;i<8;i++) glow[i]+=(( i===activeNote?1:0)-glow[i])*Math.min(1,dt*9);
+
+  audio.playNote(activeNote);
+  audio.tick(dt);
+
+  if(activeNote!==prevNote&&activeNote>=0){
+    const KW=(W*.86)/8, sx=W*.07;
+    const pt=challenge?H*.40:H*.36;
+    parts.burst(sx+activeNote*KW+KW/2, pt+24, NOTES[activeNote].col, 9);
+  }
+  prevNote=activeNote;
+
+  if(challenge&&!challenge.done){ challenge.step(dt,activeNote); if(challenge.done) showResult(); }
+  parts.update(dt);
+
+  const pt=challenge?H*.40:H*.36;
+  drawBg();
+  drawTitle();
+  if(challenge) drawChallengeDisplay(pt); else drawFreeDisplay();
+  drawPiano(pt);
+  drawPressureBar(pt);
+  drawSensorStatus(pt);
+  parts.draw(ctx);
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(t=>{last=t; requestAnimationFrame(loop);});
+
+/* ── Result ──────────────────────────────────────────────────── */
+function showResult(){
+  if(!challenge) return;
+  audio.stopNote();
+  const s=challenge.stars;
+  $('resultTitle').textContent=['😅 Keep Going!','🎵 Good!','🎶 Well Done!','⭐ Perfect!'][s];
+  $('stars').textContent='★'.repeat(s)+'☆'.repeat(3-s);
+  $('resultScore').innerHTML=`You played <b>${challenge.hits}</b> out of <b>${challenge.seq.length}</b> notes correctly`;
+  $('resultOv').classList.remove('hidden');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Air Lift</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:#030A18;font-family:"Segoe UI",system-ui,sans-serif;}
+canvas{display:block;width:100vw;height:100vh;}
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;}
+.overlay.dim{background:rgba(0,0,0,.72);}
+.hidden{display:none!important;}
+.card{background:linear-gradient(155deg,#060e24,#0d1a40);border-radius:24px;max-width:460px;width:94%;
+  box-shadow:0 0 0 1.5px rgba(80,150,255,.25),0 30px 80px rgba(0,0,0,.7);overflow:hidden;}
+.card-head{background:linear-gradient(120deg,#0e2050,#071430);padding:22px 28px 18px;text-align:center;}
+.card-head h1{font-size:1.9rem;font-weight:900;color:#60BBFF;letter-spacing:2px;}
+.card-head .sub{font-size:.82rem;color:rgba(100,180,255,.6);margin-top:4px;letter-spacing:.1em;}
+.card-body{padding:22px 26px 28px;}
+.opt-label{font-size:.6rem;font-weight:800;color:rgba(80,160,255,.65);text-transform:uppercase;letter-spacing:.12em;margin:14px 0 8px;}
+.opt-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+.btn{font-family:inherit;font-weight:800;border:none;border-radius:12px;cursor:pointer;
+  padding:10px 18px;font-size:.88rem;color:#fff;
+  background:linear-gradient(180deg,#1845A8,#0A2460);
+  box-shadow:0 4px 0 #051230,0 6px 18px rgba(0,0,0,.4);
+  transition:transform .08s,box-shadow .08s;letter-spacing:.04em;}
+.btn:active{transform:translateY(2px);box-shadow:0 2px 0 #051230;}
+.btn.sel{background:linear-gradient(180deg,#2860D8,#143890);box-shadow:0 4px 0 #082040,0 0 0 2px #4090FF;}
+.btn.big{font-size:1.1rem;padding:14px 36px;border-radius:16px;width:100%;margin-top:18px;}
+.btn.green{background:linear-gradient(180deg,#1A8040,#0C4820);box-shadow:0 4px 0 #062010;}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="setupOv" class="overlay dim">
+  <div class="card">
+    <div class="card-head">
+      <h1>💨 Air Lift</h1>
+      <div class="sub">BLOW TO LIFT THE BALLS · HOLD THEM HIGH!</div>
+    </div>
+    <div class="card-body">
+      <div class="opt-label">Mode</div>
+      <div class="opt-row" id="modeRow">
+        <button class="btn sel" data-mode="free">🎈 Free Play</button>
+        <button class="btn" data-mode="challenge">🏆 Hold Challenge</button>
+      </div>
+      <button class="btn big green" id="startBtn">▶ Start Blowing</button>
+    </div>
+  </div>
+</div>
+
+<div id="resultOv" class="overlay dim hidden">
+  <div class="card">
+    <div class="card-head"><h1 id="resultTitle">Amazing!</h1></div>
+    <div class="card-body" style="text-align:center;">
+      <div id="stars" style="font-size:2.5rem;margin:12px 0;letter-spacing:4px;"></div>
+      <div id="resultScore" style="color:rgba(100,200,255,.9);font-size:1rem;margin-bottom:16px;line-height:1.6;"></div>
+      <button class="btn big" id="replayBtn">↺ Try Again</button>
+      <button class="btn big green" id="newGameBtn" style="margin-top:8px;">🎈 New Game</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ── Ball config ─────────────────────────────────────────────────── */
+const BCFG = [
+  {name:'Red',    col:'#FF4444', hi:'#FFAAAA', lo:'#880808', liftAt:8,  topAt:40},
+  {name:'Blue',   col:'#4488FF', hi:'#AACCFF', lo:'#082288', liftAt:22, topAt:68},
+  {name:'Yellow', col:'#FFD030', hi:'#FFE880', lo:'#886000', liftAt:48, topAt:95},
+];
+const TARGET_FRAC = 0.45;  // hFrac required to count as "above the line"
+const HOLD_GOAL   = 3;     // seconds all 3 must stay above the line
+
+/* ── Ball state ─────────────────────────────────────────────────── */
+const st = BCFG.map(()=>({ hFrac:0, y:0, vy:0, abv:false, bubbles:[] }));
+
+/* ── Canvas ─────────────────────────────────────────────────────── */
+const cv  = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W=0, H=0;
+function resize(){
+  const dpr = window.devicePixelRatio||1;
+  W = innerWidth; H = innerHeight;
+  cv.width  = Math.round(W*dpr);
+  cv.height = Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  st.forEach(s=>{ s.y=0; s.vy=0; });
+}
+new ResizeObserver(()=>{ if(innerWidth&&innerHeight) resize(); }).observe(document.documentElement);
+resize();
+
+/* ── Rounded rect helper ─────────────────────────────────────────── */
+function rr(x,y,w,h,r){
+  ctx.beginPath(); r=Math.min(r,w/2,h/2);
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+
+/* ── Audio ─────────────────────────────────────────────────────── */
+const Snd = {
+  _ac:null, _mg:null, _ag:null, _airInit:false,
+  _init(){
+    if(this._ac) return;
+    this._ac = new (window.AudioContext||window.webkitAudioContext)();
+    this._mg = this._ac.createGain(); this._mg.gain.value=0.68;
+    this._mg.connect(this._ac.destination);
+  },
+  resume(){ this._init(); if(this._ac.state==='suspended') this._ac.resume(); },
+  _startAir(){
+    if(this._airInit) return; this._airInit=true;
+    const len=this._ac.sampleRate*2;
+    const buf=this._ac.createBuffer(1,len,this._ac.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    const src=this._ac.createBufferSource();
+    src.buffer=buf; src.loop=true;
+    const f=this._ac.createBiquadFilter();
+    f.type='bandpass'; f.frequency.value=1700; f.Q.value=0.45;
+    this._ag=this._ac.createGain(); this._ag.gain.value=0;
+    src.connect(f); f.connect(this._ag); this._ag.connect(this._mg);
+    src.start();
+  },
+  setAir(pct){
+    if(!this._ac||this._ac.state!=='running') return;
+    this._startAir();
+    const v=Math.pow(Math.min(1,pct/100),0.55)*0.14;
+    this._ag.gain.setTargetAtTime(v,this._ac.currentTime,0.06);
+  },
+  ping(f,v=0.3,dur=0.32){
+    if(!this._ac||this._ac.state!=='running') return;
+    const t=this._ac.currentTime;
+    const o=this._ac.createOscillator(), g=this._ac.createGain();
+    o.type='sine'; o.frequency.value=f;
+    g.gain.setValueAtTime(v,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(this._mg); o.start(t); o.stop(t+dur+0.02);
+  },
+  liftBall(i){ this.ping([660,880,1100][i],0.22,0.28); },
+  win(){
+    [523,659,784,1047].forEach((f,i)=>setTimeout(()=>this.ping(f,0.32,0.45),i*130));
+  },
+};
+
+/* ── Sensor ─────────────────────────────────────────────────────── */
+let sensorPct=0, sensorOk=false, lastSensorMs=0;
+window.addEventListener('message',e=>{
+  const d=e.data; if(!d) return;
+  if(d.type==='pressure'){
+    sensorPct=typeof d.pct==='number'?d.pct:0;
+    sensorOk=true; lastSensorMs=Date.now();
+  }
+});
+const _kd={};
+window.addEventListener('keydown',e=>{ if(!e.repeat){ _kd[e.key]=true; Snd.resume(); } });
+window.addEventListener('keyup',  e=>{ _kd[e.key]=false; });
+function kbPct(){
+  for(let k of ['9','8','7','6','5','4','3','2','1']) if(_kd[k]) return parseInt(k)*11;
+  return _kd[' ']?100:0;
+}
+cv.addEventListener('pointerdown', ()=>Snd.resume());
+
+/* ── Game state ─────────────────────────────────────────────────── */
+let mode='free', active=false, holdT=0, bestHold=0, done=false;
+
+const $=id=>document.getElementById(id);
+$('modeRow').addEventListener('click',e=>{
+  const b=e.target.closest('[data-mode]'); if(!b) return;
+  mode=b.dataset.mode;
+  $('modeRow').querySelectorAll('.btn').forEach(x=>x.classList.toggle('sel',x===b));
+  Snd.resume();
+});
+function startGame(){
+  Snd.resume();
+  active=true; holdT=0; bestHold=0; done=false;
+  st.forEach(s=>{ s.hFrac=0; s.y=0; s.vy=0; s.abv=false; s.bubbles=[]; });
+}
+$('startBtn').addEventListener('click',()=>{ startGame(); $('setupOv').classList.add('hidden'); });
+$('replayBtn').addEventListener('click',()=>{ startGame(); $('resultOv').classList.add('hidden'); });
+$('newGameBtn').addEventListener('click',()=>{
+  active=false; $('resultOv').classList.add('hidden'); $('setupOv').classList.remove('hidden');
+});
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+function lay(){
+  const TW = Math.min(W*0.155, 118);
+  const TH = H * 0.71;
+  const TY = H * 0.135;
+  const TB = TY + TH;
+  const WL = TW * 0.09;
+  const BR = (TW - WL*2) * 0.46;
+  const CX = [W*0.24, W*0.5, W*0.76];
+  return {TW,TH,TY,TB,WL,BR,CX};
+}
+
+/* ── Draw helpers ─────────────────────────────────────────────────── */
+function drawBg(){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#030A18'); g.addColorStop(1,'#07102A');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  const rg=ctx.createRadialGradient(W/2,H*.5,0,W/2,H*.5,H*.65);
+  rg.addColorStop(0,'rgba(20,50,120,.1)'); rg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=rg; ctx.fillRect(0,0,W,H);
+}
+
+function drawTube(i, L){
+  const cx=L.CX[i], x=cx-L.TW/2, s=st[i];
+
+  // Soft glow behind tube when ball is rising
+  if(s.hFrac>0.05){
+    ctx.save();
+    ctx.shadowColor=BCFG[i].col+'40'; ctx.shadowBlur=24*s.hFrac;
+    ctx.fillStyle='rgba(0,0,0,0)';
+    rr(x,L.TY,L.TW,L.TH,L.TW/2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Glass body
+  const bg=ctx.createLinearGradient(x,0,x+L.TW,0);
+  bg.addColorStop(0,   'rgba(10,25,70,.06)');
+  bg.addColorStop(0.1, 'rgba(130,170,255,.17)');
+  bg.addColorStop(0.18,'rgba(10,22,60,.65)');
+  bg.addColorStop(0.82,'rgba(10,22,60,.65)');
+  bg.addColorStop(0.9, 'rgba(130,170,255,.17)');
+  bg.addColorStop(1,   'rgba(10,25,70,.06)');
+  ctx.fillStyle=bg; rr(x,L.TY,L.TW,L.TH,L.TW/2); ctx.fill();
+
+  // Border
+  ctx.strokeStyle='rgba(70,120,220,.22)'; ctx.lineWidth=1.5;
+  rr(x,L.TY,L.TW,L.TH,L.TW/2); ctx.stroke();
+
+  // Left glass-edge shine
+  const sh=ctx.createLinearGradient(x,0,x+L.WL*2.8,0);
+  sh.addColorStop(0,'rgba(255,255,255,0)');
+  sh.addColorStop(0.5,'rgba(255,255,255,.08)');
+  sh.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=sh;
+  rr(x+L.WL*.2,L.TY+L.TW*.4,L.WL*2.5,L.TH-L.TW*.8,0); ctx.fill();
+
+  // Threshold labels inside tube (Free Play hint)
+  if(mode==='free'){
+    ctx.fillStyle='rgba(255,255,255,.22)';
+    ctx.font=`500 ${Math.max(8,L.TW*.1)}px "Segoe UI",sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    const labelY=L.TY+L.TH*(1-BCFG[i].liftAt/100)-12;
+    ctx.fillText(`${BCFG[i].liftAt}%`,cx,labelY);
+  }
+}
+
+function drawTargetLine(i, L){
+  if(mode!=='challenge') return;
+  const cx=L.CX[i], lineY=L.TB-L.TH*TARGET_FRAC;
+  const x=cx-L.TW/2+L.WL*1.4, w=L.TW-L.WL*2.8;
+  const isAbv=st[i].abv;
+  ctx.strokeStyle=isAbv?'rgba(60,255,110,.88)':'rgba(255,200,50,.65)';
+  ctx.lineWidth=2; ctx.setLineDash([5,4]);
+  ctx.beginPath(); ctx.moveTo(x,lineY); ctx.lineTo(x+w,lineY); ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawBall(i, L){
+  const s=st[i], bc=BCFG[i], cx=L.CX[i];
+  if(s.y===0) s.y=L.TB-L.BR;
+  const r=L.BR;
+
+  if(s.hFrac<0.015){
+    // Resting at bottom – dim flattened
+    const g=ctx.createRadialGradient(cx-r*.3,s.y-r*.25,r*.05,cx,s.y,r);
+    g.addColorStop(0,bc.hi+'50'); g.addColorStop(0.5,bc.col+'40'); g.addColorStop(1,bc.lo+'28');
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.ellipse(cx,s.y,r,r*.78,0,0,Math.PI*2); ctx.fill();
+    return;
+  }
+
+  // Floating – squish from velocity
+  const sq=Math.abs(s.vy)*0.028, rx=r*(1+sq*.5), ry=r*(1-sq*.4);
+
+  ctx.save();
+  ctx.shadowColor=bc.col; ctx.shadowBlur=10+20*s.hFrac;
+
+  const g=ctx.createRadialGradient(cx-r*.28,s.y-r*.3,r*.04,cx,s.y,r);
+  g.addColorStop(0,bc.hi); g.addColorStop(0.45,bc.col); g.addColorStop(1,bc.lo);
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.ellipse(cx,s.y,rx,ry,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // Specular
+  const sg=ctx.createRadialGradient(cx-r*.3,s.y-r*.32,0,cx-r*.28,s.y-r*.28,r*.55);
+  sg.addColorStop(0,'rgba(255,255,255,.78)');
+  sg.addColorStop(0.5,'rgba(255,255,255,.16)');
+  sg.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=sg;
+  ctx.beginPath(); ctx.ellipse(cx,s.y,rx,ry,0,0,Math.PI*2); ctx.fill();
+
+  // Underside shadow
+  const ug=ctx.createRadialGradient(cx,s.y+ry*.7,0,cx,s.y+ry*.6,r*.72);
+  ug.addColorStop(0,'rgba(0,0,0,.38)'); ug.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=ug;
+  ctx.beginPath(); ctx.ellipse(cx,s.y+ry*.55,r*.72,r*.3,0,0,Math.PI*2); ctx.fill();
+}
+
+function drawLabel(i, L){
+  const bc=BCFG[i], cx=L.CX[i], fh=Math.min(H*.028,18);
+  ctx.save();
+  ctx.shadowColor=bc.col; ctx.shadowBlur=st[i].hFrac*12;
+  ctx.fillStyle=bc.col;
+  ctx.font=`700 ${fh}px "Segoe UI",sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='bottom';
+  ctx.fillText(bc.name,cx,L.TY-6);
+  ctx.restore();
+}
+
+function drawPressureBar(pct){
+  const bw=Math.max(12,W*.028), bh=H*.71;
+  const bx=W-bw-W*.035, by=H*.135;
+
+  rr(bx,by,bw,bh,bw/2); ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fill();
+  ctx.strokeStyle='rgba(70,120,220,.15)'; ctx.lineWidth=1;
+  rr(bx,by,bw,bh,bw/2); ctx.stroke();
+
+  // Threshold marks
+  BCFG.forEach(bc=>{
+    const my=by+bh*(1-bc.liftAt/100);
+    ctx.fillStyle=bc.col+'70'; ctx.fillRect(bx+1,my-1,bw-2,2);
+  });
+
+  if(pct>1){
+    const fh=bh*pct/100, fy=by+bh-fh;
+    const g=ctx.createLinearGradient(0,fy,0,by+bh);
+    g.addColorStop(0,'#80C8FF'); g.addColorStop(1,'#1848A0');
+    ctx.fillStyle=g; rr(bx+2,fy,bw-4,fh,bw/2-2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.8)'; ctx.fillRect(bx-2,fy-2,bw+4,3);
+  }
+
+  // Sensor dot
+  const fresh=sensorOk&&(Date.now()-lastSensorMs<2000);
+  const dr=Math.max(4,bw*.28), dy=by+bh+dr*2;
+  ctx.save();
+  ctx.shadowColor=fresh?'#44ff88':'#ff4444'; ctx.shadowBlur=8;
+  ctx.fillStyle=fresh?'#44ff88':'#ff3333';
+  ctx.beginPath(); ctx.arc(bx+bw/2,dy,dr,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle=fresh?'rgba(68,255,136,.8)':'rgba(255,80,80,.7)';
+  ctx.font=`700 ${Math.max(8,bw*.3)}px "Segoe UI",sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillText(fresh?'OK':'NO',bx+bw/2,dy+dr+2);
+}
+
+function drawHUD(){
+  const fh=Math.min(H*.044,27);
+  ctx.save();
+  ctx.shadowColor='rgba(80,180,255,.5)'; ctx.shadowBlur=10;
+  ctx.fillStyle='rgba(100,180,255,.92)';
+  ctx.font=`900 ${fh}px "Segoe UI",sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillText('💨 Air Lift',W/2,H*.012);
+  ctx.restore();
+
+  if(mode==='challenge'&&active&&!done){
+    // Progress bar
+    const pw=W*.28, ph=9, px=(W-pw)/2, py=H*.063;
+    ctx.fillStyle='rgba(255,255,255,.1)';
+    rr(px,py,pw,ph,4); ctx.fill();
+    if(holdT>0){
+      const f=Math.min(1,holdT/HOLD_GOAL);
+      ctx.fillStyle=f>=1?'#44FF88':f>0.5?'#80E8FF':'#4488FF';
+      rr(px,py,pw*f,ph,4); ctx.fill();
+    }
+    ctx.fillStyle='rgba(255,255,255,.5)';
+    ctx.font=`600 ${fh*.54}px "Segoe UI",sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillText(`Hold ALL 3 balls above the line for ${HOLD_GOAL}s`,W/2,H*.078);
+    if(bestHold>0.2){
+      ctx.fillStyle='rgba(100,200,255,.65)';
+      ctx.textAlign='right';
+      ctx.fillText(`Best: ${bestHold.toFixed(1)}s`,W*.95,H*.015);
+    }
+  }
+}
+
+/* ── Bubbles ─────────────────────────────────────────────────────── */
+function spawnBubble(i, L, pct, dt){
+  const bc=BCFG[i], s=st[i];
+  if(pct<bc.liftAt) return;
+  const rate=3+5*(pct-bc.liftAt)/(bc.topAt-bc.liftAt+1);
+  if(Math.random()<rate*dt)
+    s.bubbles.push({x:L.CX[i]+(Math.random()-.5)*L.BR*.9,
+      y:s.y+L.BR*.1, vy:-(25+Math.random()*50),
+      r:1.2+Math.random()*2.3, a:.7});
+}
+function updateBubbles(i, L, dt){
+  st[i].bubbles.forEach(b=>{ b.y+=b.vy*dt; b.x+=(Math.random()-.5)*.5; b.a-=dt*1.5; });
+  st[i].bubbles=st[i].bubbles.filter(b=>b.a>0&&b.y>L.TY);
+}
+function drawBubbles(i){
+  for(const b of st[i].bubbles){
+    ctx.save(); ctx.globalAlpha=Math.max(0,b.a);
+    ctx.strokeStyle='rgba(160,210,255,.9)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/* ── Main loop ─────────────────────────────────────────────────── */
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  const pct=sensorPct||kbPct()||0;
+  const L=lay();
+
+  // Update ball height fracs + spring physics
+  st.forEach((s,i)=>{
+    const bc=BCFG[i];
+    const tf=Math.max(0,Math.min(1,(pct-bc.liftAt)/(bc.topAt-bc.liftAt)));
+    s.hFrac+=(tf-s.hFrac)*Math.min(1,dt*10);
+    if(s.y===0) s.y=L.TB-L.BR;
+    const tY=L.TB-L.BR-(L.TH-L.BR*2)*s.hFrac;
+    s.vy=(s.vy+(tY-s.y)*0.18)*0.72;
+    s.y+=s.vy;
+  });
+
+  // Challenge logic
+  if(mode==='challenge'&&active&&!done){
+    const allAbv=st.every(s=>s.hFrac>=TARGET_FRAC);
+    if(allAbv){ holdT+=dt; if(holdT>bestHold) bestHold=holdT; }
+    else holdT=0;
+    if(bestHold>=HOLD_GOAL){ done=true; active=false; Snd.win(); setTimeout(showResult,900); }
+    st.forEach((s,i)=>{
+      const was=s.abv; s.abv=s.hFrac>=TARGET_FRAC;
+      if(!was&&s.abv) Snd.liftBall(i);
+    });
+  }
+
+  if(active) Snd.setAir(pct);
+  st.forEach((_,i)=>{ spawnBubble(i,L,pct,dt); updateBubbles(i,L,dt); });
+
+  // Draw
+  drawBg();
+  drawHUD();
+  for(let i=0;i<3;i++) drawTube(i,L);
+  for(let i=0;i<3;i++) drawTargetLine(i,L);
+  for(let i=0;i<3;i++) drawBubbles(i);
+  for(let i=0;i<3;i++) drawBall(i,L);
+  for(let i=0;i<3;i++) drawLabel(i,L);
+  drawPressureBar(pct);
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(t=>{ last=t; requestAnimationFrame(loop); });
+
+/* ── Result ─────────────────────────────────────────────────────── */
+function showResult(){
+  const stars=bestHold>=HOLD_GOAL?3:bestHold>=HOLD_GOAL*0.67?2:bestHold>=HOLD_GOAL*0.33?1:0;
+  $('resultTitle').textContent=['Keep Blowing!','Good Try!','Well Done!','Amazing!'][stars];
+  $('stars').textContent='★'.repeat(stars)+'☆'.repeat(3-stars);
+  $('resultScore').innerHTML=`Best hold time: <b>${bestHold.toFixed(1)}s</b> out of <b>${HOLD_GOAL}s</b> goal`;
+  $('resultOv').classList.remove('hidden');
+}
+</script>
+</body>
+</html>

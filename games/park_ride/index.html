@@ -1,0 +1,46 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;}body{margin:0;padding:0;}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Park Ride</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/styles.css">
+
+<div class="app">
+  <!-- Scene: the first-person ride, drawn on one canvas -->
+  <main class="scene" id="scene">
+    <canvas id="view" role="img" aria-label="Riding a bicycle along a quiet park trail"></canvas>
+
+    <div class="badge" id="badge" aria-live="polite">
+      <svg class="badge-star" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2.8l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.6l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z"/>
+      </svg>
+      <span class="badge-count" id="starCount">0</span>
+      <span class="sr-only">stars</span>
+    </div>
+
+    <p class="hint" id="hint">Press <strong>Go</strong> to ride</p>
+    <div id="warning" class="warning hidden"></div>
+  </main>
+
+  <!-- hidden buttons kept so main.js / input.js refs don't break -->
+  <button id="btnLeft"  hidden aria-label="Steer left"></button>
+  <button id="btnGo"    hidden aria-pressed="false"><span id="goLabel">Go</span></button>
+  <button id="btnRight" hidden aria-label="Steer right"></button>
+  <input  type="radio"  name="speed" id="speedSlow"   value="slow"   hidden>
+  <input  type="radio"  name="speed" id="speedNormal" value="normal" checked hidden>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/camera.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/scenery.js"></script>
+<script src="js/stars.js"></script>
+<script src="js/bike.js"></script>
+<script src="js/input.js"></script>
+<script src="js/cyclists.js"></script>
+<script src="js/music.js"></script>
+<script src="js/lb_sensor.js"></script>
+<script src="js/main.js"></script>
+
+</body></html>
