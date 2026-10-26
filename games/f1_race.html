@@ -6,7 +6,7 @@
 <title>F1 Speed Rush</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-html,body{width:100%;height:100%;overflow:hidden;background:#060608;}
+html,body{width:100%;height:100%;overflow:hidden;background:#1a7fdb;}
 canvas{display:block;width:100vw;height:100vh;}
 
 /* ── HUD ─────────────────────────────────────────────── */
@@ -201,13 +201,14 @@ const TIMER_OPTS=[60,120,180,240,300,600];
 
 /* ── Config ─────────────────────────────────────────────────── */
 const CFG={
-  horizon:0.37, camHeight:0.55, zNear:0.5, zFar:80,
-  trackHalf:5.5, curbW:0.7, runOff:4.5, barrierOff:2.2,
-  playerRange:3.8, steerRate:2.0, accel:1.1,
-  maxSpeed:88,            // m/s ≈ 317 km/h
+  horizon:0.50, camHeight:0.55, zNear:0.5, zFar:80,
+  trackHalf:6.5, curbW:0.8, runOff:3.2, barrierOff:2.0,
+  playerRange:4.8, steerRate:2.0, accel:1.1,
+  maxSpeed:88,
   npcMin:50, npcMax:80,
   stripe:8, dashLen:2, dashGap:5,
 };
+// Stadium grandstand geometry (positioned just outside barriers)
 
 /* ── Track curve ────────────────────────────────────────────── */
 function trackCurveAt(z){
@@ -310,47 +311,21 @@ const BOARD_DATA=Array.from({length:40},(_,i)=>({
 
 function drawSky(ctx,W,H,hY,camZ){
   const g=ctx.createLinearGradient(0,0,0,hY);
-  g.addColorStop(0,'#08090e');g.addColorStop(0.55,'#0d1a30');g.addColorStop(1,'#1a2c40');
+  g.addColorStop(0,'#1a7fdb');g.addColorStop(0.7,'#42b0ff');g.addColorStop(1,'#87d4ff');
   ctx.fillStyle=g;ctx.fillRect(0,0,W,hY+2);
-  // Sun/haze near horizon
-  const sg=ctx.createRadialGradient(W*.62,hY*.88,0,W*.62,hY*.88,W*.38);
-  sg.addColorStop(0,'rgba(255,160,40,.22)');sg.addColorStop(1,'rgba(255,100,0,0)');
-  ctx.fillStyle=sg;ctx.fillRect(0,0,W,hY+4);
-  // Distant grandstands above horizon
-  _drawGrandstandHorizon(ctx,W,hY,camZ);
+  // White horizon line
+  ctx.fillStyle='#e8f4ff';
+  ctx.fillRect(0,hY-2,W,4);
 }
 
-function _drawGrandstandHorizon(ctx,W,hY,camZ){
-  ctx.save();
-  const rng2=makeRng(Math.floor(camZ/80)*80+1);
-  const panX=((camZ*.008)%1)*W;
-  for(let pass=0;pass<2;pass++){
-    const y0=hY-(pass===0?hY*.22:hY*.14);
-    const unitW=W*.042,unitH=hY*(pass===0?.22:.14);
-    ctx.fillStyle=pass===0?'#1a1c22':'#222430';
-    for(let x=-unitW;x<W+unitW;x+=unitW){
-      const rx=((x-panX)%W+W)%W-unitW;
-      ctx.fillRect(rx,y0,unitW-.5,unitH);
-    }
-    // Crowd dots
-    for(let x=-unitW;x<W+unitW;x+=unitW*.28){
-      const rx=((x-panX*.9)%W+W)%W-unitW*.3;
-      const ry=y0+unitH*.18+rng2()*unitH*.6;
-      ctx.fillStyle=`hsl(${Math.floor(rng2()*360)},60%,55%)`;
-      ctx.beginPath();ctx.arc(rx,ry,Math.max(1,unitH*.055),0,TAU);ctx.fill();
-    }
-  }
-  ctx.restore();
-}
 
 function drawScene(ctx,camState){
   const {W,H,hY}=cam;
   const STEPS=64,stepZ=CFG.zFar/STEPS;
 
-  // Fill ground fully first
-  const gg=ctx.createLinearGradient(0,hY,0,H);
-  gg.addColorStop(0,'#1a2010');gg.addColorStop(1,'#0e1408');
-  ctx.fillStyle=gg;ctx.fillRect(0,hY,W,H-hY);
+  // Fill ground fully first (pure black base so asphalt never looks gray)
+  ctx.fillStyle='#000000';
+  ctx.fillRect(0,hY,W,H-hY);
 
   for(let i=STEPS;i>0;i--){
     const rzF=i*stepZ, rzN=Math.max(0.3,(i-1)*stepZ);
@@ -362,62 +337,47 @@ function drawScene(ctx,camState){
 
     const isAlt=Math.floor(wzN/CFG.stripe)%2;
 
-    // Run-off (green)
+    // Bright green run-off (full width — provides contrast with dark road)
     const roW=CFG.trackHalf+CFG.curbW+CFG.runOff;
     const pFL=cam.project(cxF-roW,0,rzF),pFR=cam.project(cxF+roW,0,rzF);
     const pNL=cam.project(cxN-roW,0,rzN),pNR=cam.project(cxN+roW,0,rzN);
-    ctx.fillStyle=isAlt?'#2e4a1a':'#3a5822';
+    ctx.fillStyle=isAlt?'#1a6e18':'#22881e';
     quad(ctx,pFL,pFR,pNR,pNL);
 
-    // Curbing left
+    // Road edges (track half is the boundary)
     const tFL=cam.project(cxF-CFG.trackHalf,0,rzF),tFR=cam.project(cxF+CFG.trackHalf,0,rzF);
     const tNL=cam.project(cxN-CFG.trackHalf,0,rzN),tNR=cam.project(cxN+CFG.trackHalf,0,rzN);
-    const cFL=cam.project(cxF-CFG.trackHalf-CFG.curbW,0,rzF);
-    const cNL=cam.project(cxN-CFG.trackHalf-CFG.curbW,0,rzN);
-    const cFR=cam.project(cxF+CFG.trackHalf+CFG.curbW,0,rzF);
-    const cNR=cam.project(cxN+CFG.trackHalf+CFG.curbW,0,rzN);
-    const isCurb=Math.floor(wzN/3)%2;
-    ctx.fillStyle=isCurb?'#cc1111':'#eeeeee';
-    quad(ctx,cFL,tFL,tNL,cNL);
-    quad(ctx,tFR,cFR,cNR,tNR);
 
-    // Asphalt
-    ctx.fillStyle=isAlt?'#1e1e1e':'#252525';
+    // Dark charcoal asphalt
+    ctx.fillStyle=isAlt?'#1a1a1a':'#242424';
     quad(ctx,tFL,tFR,tNR,tNL);
-
-    // White track edge lines
-    const wLine=0.15;
-    const wFL=cam.project(cxF-CFG.trackHalf+wLine,0,rzF),wFR=cam.project(cxF+CFG.trackHalf-wLine,0,rzF);
-    const wNL=cam.project(cxN-CFG.trackHalf+wLine,0,rzN),wNR=cam.project(cxN+CFG.trackHalf-wLine,0,rzN);
-    ctx.fillStyle='rgba(255,255,255,0.65)';
-    quad(ctx,cam.project(cxF-CFG.trackHalf,0,rzF),wFL,wNL,cam.project(cxN-CFG.trackHalf,0,rzN));
-    quad(ctx,wFR,cam.project(cxF+CFG.trackHalf,0,rzF),cam.project(cxN+CFG.trackHalf,0,rzN),wNR);
-
-    // Armco barriers
-    const barX=CFG.trackHalf+CFG.curbW+CFG.barrierOff;
-    const barH=0.95;
-    const bFL=cam.project(cxF-barX,barH,rzF),bFR=cam.project(cxF+barX,barH,rzF);
-    const bNL=cam.project(cxN-barX,barH,rzN),bNR=cam.project(cxN+barX,barH,rzN);
-    const bFL0=cam.project(cxF-barX,0,rzF),bFR0=cam.project(cxF+barX,0,rzF);
-    const bNL0=cam.project(cxN-barX,0,rzN),bNR0=cam.project(cxN+barX,0,rzN);
-    // Armco face
-    ctx.fillStyle='#8a9090';
-    quad(ctx,bFL,bFR,bFR0,bFL0);
-    quad(ctx,bNL,bNR,bNR0,bNL0);
-    // Red stripe on top
-    const rH=0.18;
-    const rFL=cam.project(cxF-barX,barH-rH,rzF),rFR=cam.project(cxF+barX,barH-rH,rzF);
-    const rNL=cam.project(cxN-barX,barH-rH,rzN),rNR=cam.project(cxN+barX,barH-rH,rzN);
-    ctx.fillStyle='#cc1111';
-    quad(ctx,bFL,bFR,rFR,rFL);
-    quad(ctx,bNL,bNR,rNR,rNL);
 
     ctx.globalAlpha=1;
   }
 
+  // Solid white boundary lines — drawn as continuous screen strokes after all strips
+  for(const side of[-1,1]){
+    const wx=side*CFG.trackHalf;
+    ctx.beginPath();
+    let started=false;
+    for(let i=STEPS;i>=1;i--){
+      const rz=i*stepZ;
+      const wz=cam.z+rz;
+      const cx=trackCurveAt(wz);
+      const p=cam.project(cx+wx,0,rz);
+      if(p.y<cam.hY)continue;
+      if(!started){ctx.moveTo(p.x,p.y);started=true;}
+      else ctx.lineTo(p.x,p.y);
+    }
+    ctx.strokeStyle='#ffffff';
+    ctx.lineWidth=Math.max(4,cam.D*0.035);
+    ctx.lineJoin='round';
+    ctx.stroke();
+  }
+
   // Centre dashes
-  ctx.fillStyle='rgba(255,255,255,0.55)';
-  const dw=0.1;
+  ctx.fillStyle='#ffffff';
+  const dw=0.12;
   const firstD=Math.floor(cam.z/CFG.dashGap);
   for(let i=firstD;i<firstD+CFG.zFar/CFG.dashGap;i++){
     let z1=i*CFG.dashGap-cam.z, z2=z1+CFG.dashLen;
@@ -425,7 +385,7 @@ function drawScene(ctx,camState){
     const wz=cam.z+z1, cx=trackCurveAt(wz);
     const p1=cam.project(cx-dw,0,z1),p2=cam.project(cx+dw,0,z1);
     const p3=cam.project(cx+dw,0,z2),p4=cam.project(cx-dw,0,z2);
-    ctx.globalAlpha=cam.fade(z1)*.8;
+    ctx.globalAlpha=cam.fade(z1);
     quad(ctx,p1,p2,p3,p4);
   }
   ctx.globalAlpha=1;
