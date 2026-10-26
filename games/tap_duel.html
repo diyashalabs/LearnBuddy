@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Tap Duel</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  background:#111;
+  font-family:'Arial Rounded MT Bold',Arial,sans-serif;
+  overflow:hidden;height:100dvh;width:100vw;
+  user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none;
+}
+
+/* ── two halves ── */
+#arena{display:flex;height:100dvh;width:100vw;}
+.side{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:space-between;
+  padding:clamp(10px,3vh,28px) clamp(6px,2vw,18px);
+  cursor:pointer;position:relative;overflow:hidden;
+}
+#leftSide {background:linear-gradient(180deg,#1a0505,#2d0606);border-right:3px solid #222;}
+#rightSide{background:linear-gradient(180deg,#050515,#060828);}
+.side.flash{filter:brightness(2);}
+
+.label{
+  font-size:clamp(.85rem,2.4vw,1.5rem);font-weight:900;
+  letter-spacing:2px;text-transform:uppercase;
+}
+#leftSide  .label{color:#ff4444;}
+#rightSide .label{color:#44aaff;}
+
+.score{
+  font-size:clamp(4rem,14vw,9rem);font-weight:900;line-height:1;
+  transition:transform .06s;
+}
+#leftSide  .score{color:#ff4444;text-shadow:0 0 40px #ff220088;}
+#rightSide .score{color:#44aaff;text-shadow:0 0 40px #2266ff88;}
+.score.bump{transform:scale(1.38);}
+
+/* vertical bar */
+.bar-wrap{
+  flex:1;width:60%;max-width:120px;
+  background:rgba(255,255,255,.07);
+  border-radius:14px;overflow:hidden;
+  margin:8px 0;position:relative;min-height:80px;
+}
+.bar-fill{
+  width:100%;border-radius:14px;
+  position:absolute;bottom:0;height:0%;
+  transition:height .1s ease-out;
+}
+#barL{background:linear-gradient(180deg,#ff8800,#ff2222);box-shadow:0 0 18px #ff4400;}
+#barR{background:linear-gradient(180deg,#00eeff,#2255ff);box-shadow:0 0 18px #0088ff;}
+
+.hint{font-size:clamp(.65rem,1.6vw,.95rem);color:rgba(255,255,255,.32);letter-spacing:1px;}
+
+/* centre timer */
+#hud{
+  position:fixed;top:0;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;
+  z-index:20;pointer-events:none;padding-top:8px;gap:4px;
+}
+#timer{
+  font-size:clamp(1.6rem,4.5vw,3rem);font-weight:900;
+  color:#fff;text-shadow:0 2px 8px #000;
+  background:rgba(0,0,0,.65);padding:2px 16px;
+  border-radius:28px;min-width:4ch;text-align:center;
+}
+#timer.urgent{color:#ff4400;animation:pulse .5s infinite alternate;}
+#readyTxt{
+  font-size:clamp(.75rem,2vw,1rem);color:rgba(255,255,255,.55);
+  background:rgba(0,0,0,.5);padding:2px 12px;border-radius:20px;
+}
+@keyframes pulse{to{text-shadow:0 0 20px #ff4400;}}
+
+/* ripple */
+.ripple{
+  position:absolute;border-radius:50%;pointer-events:none;
+  transform:translate(-50%,-50%);
+  animation:rip .45s ease-out forwards;
+}
+@keyframes rip{
+  from{width:0;height:0;opacity:.6;}
+  to  {width:420px;height:420px;opacity:0;}
+}
+
+/* result overlay */
+#result{
+  position:fixed;inset:0;background:rgba(0,0,0,.88);
+  display:none;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:clamp(12px,3vh,24px);z-index:100;
+}
+#result h1{font-size:clamp(2rem,6vw,4rem);font-weight:900;color:#fff;letter-spacing:3px;}
+.winner{font-size:clamp(1.5rem,4.5vw,3rem);font-weight:900;text-align:center;}
+.finals{display:flex;gap:28px;font-size:clamp(1.4rem,4vw,2.5rem);font-weight:900;}
+.btn{
+  padding:14px 44px;font-size:clamp(1rem,2.5vw,1.4rem);
+  font-weight:900;border:none;border-radius:50px;cursor:pointer;
+  background:#fff;color:#111;transition:transform .1s;
+}
+.btn:hover{transform:scale(1.06);}
+</style>
+</head>
+<body>
+
+<div id="arena">
+  <div class="side" id="leftSide">
+    <div class="label">◀ S1 · LEFT</div>
+    <div class="score" id="scoreL">0</div>
+    <div class="bar-wrap"><div class="bar-fill" id="barL"></div></div>
+    <div class="hint">TAP / KEY A</div>
+  </div>
+  <div class="side" id="rightSide">
+    <div class="label">RIGHT · S2 ▶</div>
+    <div class="score" id="scoreR">0</div>
+    <div class="bar-wrap"><div class="bar-fill" id="barR"></div></div>
+    <div class="hint">TAP / KEY L</div>
+  </div>
+</div>
+
+<div id="hud">
+  <div id="timer">30</div>
+  <div id="readyTxt">TAP TO START!</div>
+</div>
+
+<div id="result"></div>
+
+<script>
+const DURATION = 30;
+const BAR_MAX  = 150;
+
+let sL=0, sR=0, tLeft=DURATION, phase='idle', tid=null;
+// phase: 'idle' | 'running' | 'done'
+
+const elSL    = document.getElementById('scoreL');
+const elSR    = document.getElementById('scoreR');
+const elBarL  = document.getElementById('barL');
+const elBarR  = document.getElementById('barR');
+const elTimer = document.getElementById('timer');
+const elReady = document.getElementById('readyTxt');
+const elRes   = document.getElementById('result');
+
+// ── Tap handlers ─────────────────────────────────────────
+function tapL(evt){ tap('L', evt); }
+function tapR(evt){ tap('R', evt); }
+
+function tap(side, evt){
+  if(phase==='done') return;
+  if(phase==='idle') beginGame();
+
+  if(side==='L') sL++;
+  else           sR++;
+
+  updateSide(side);
+  if(evt) ripple(side==='L'?'leftSide':'rightSide', evt,
+                 side==='L'?'#ff4444':'#44aaff');
+  flashSide(side==='L'?'leftSide':'rightSide');
+}
+
+function beginGame(){
+  phase='running';
+  elReady.style.display='none';
+  tid=setInterval(tick,1000);
+}
+
+function tick(){
+  tLeft--;
+  elTimer.textContent=tLeft;
+  if(tLeft<=10) elTimer.classList.add('urgent');
+  if(tLeft<=0){ clearInterval(tid); phase='done'; showResult(); }
+}
+
+function showResult(){
+  let w;
+  if(sL>sR)      w=`<div class="winner" style="color:#ff4444">🏆 LEFT WINS!</div>`;
+  else if(sR>sL) w=`<div class="winner" style="color:#44aaff">🏆 RIGHT WINS!</div>`;
+  else           w=`<div class="winner" style="color:#ffcc00">🤝 IT'S A TIE!</div>`;
+  elRes.innerHTML=`
+    <h1>TIME'S UP!</h1>${w}
+    <div class="finals">
+      <span style="color:#ff4444">LEFT: ${sL}</span>
+      <span style="color:#888">vs</span>
+      <span style="color:#44aaff">RIGHT: ${sR}</span>
+    </div>
+    <button class="btn" onclick="resetGame()">▶ PLAY AGAIN</button>`;
+  elRes.style.display='flex';
+}
+
+function resetGame(){
+  sL=0; sR=0; tLeft=DURATION; phase='idle';
+  elSL.textContent='0'; elSR.textContent='0';
+  elBarL.style.height='0%'; elBarR.style.height='0%';
+  elTimer.textContent=DURATION; elTimer.classList.remove('urgent');
+  elReady.style.display='';
+  elRes.style.display='none';
+}
+
+// ── Visual feedback ───────────────────────────────────────
+function updateSide(side){
+  const score = side==='L'?sL:sR;
+  const el    = side==='L'?elSL:elSR;
+  const bar   = side==='L'?elBarL:elBarR;
+  el.textContent=score;
+  bar.style.height=Math.min(100,score/BAR_MAX*100)+'%';
+  el.classList.add('bump');
+  setTimeout(()=>el.classList.remove('bump'),80);
+}
+
+function flashSide(id){
+  const el=document.getElementById(id);
+  el.classList.add('flash');
+  setTimeout(()=>el.classList.remove('flash'),60);
+}
+
+function ripple(sideId, evt, color){
+  const side=document.getElementById(sideId);
+  const rect=side.getBoundingClientRect();
+  const cx=(evt.touches?evt.touches[0].clientX:evt.clientX)-rect.left;
+  const cy=(evt.touches?evt.touches[0].clientY:evt.clientY)-rect.top;
+  const r=document.createElement('div');
+  r.className='ripple';
+  r.style.cssText=`left:${cx}px;top:${cy}px;background:${color}44;`;
+  side.appendChild(r);
+  setTimeout(()=>r.remove(),450);
+}
+
+// ── Events ────────────────────────────────────────────────
+const lSide=document.getElementById('leftSide');
+const rSide=document.getElementById('rightSide');
+
+lSide.addEventListener('touchstart',e=>{e.preventDefault();tapL(e);},{passive:false});
+rSide.addEventListener('touchstart',e=>{e.preventDefault();tapR(e);},{passive:false});
+lSide.addEventListener('mousedown', e=>tapL(e));
+rSide.addEventListener('mousedown', e=>tapR(e));
+
+document.addEventListener('keydown',e=>{
+  if(e.repeat) return;
+  const k=e.key.toLowerCase();
+  if(['a','z','arrowleft'].includes(k))  tapL(null);
+  if(['l','m','arrowright'].includes(k)) tapR(null);
+  if(k==='r') resetGame();
+});
+
+// postMessage from hub
+// IR sensors: {type:'ir', s:1, v:0} = S1 triggered (v=0 = falling edge = one tap)
+//             {type:'ir', s:2, v:0} = S2 triggered
+window.addEventListener('message',e=>{
+  const d=e.data;
+  if(!d) return;
+  if(d.type==='ir'){
+    if(d.s===1 && d.v===0) tapL(null);  // S1 detected
+    if(d.s===2 && d.v===0) tapR(null);  // S2 detected
+  }
+});
+</script>
+</body>
+</html>

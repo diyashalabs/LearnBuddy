@@ -310,6 +310,11 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--ac
         <div class="gdesc">Blow to intercept the called number — great for counting and breath control!</div>
         <span class="badge" style="background:#cc6600;color:#fff">Blow Sensor</span>
       </div>
+      <div class="game-card" id="tapDuelCard" onclick="openTapDuelGame()">
+        <div class="gname">👐 Tap Duel</div>
+        <div class="gdesc">Tap S1 and S2 as fast as you can! Two vertical bars show each hand's score — who wins?</div>
+        <span class="badge" style="background:#884ccc;color:#fff">S1 · S2 Buttons</span>
+      </div>
     </div>
   </div>
 
@@ -732,114 +737,46 @@ function handleIR(sensor, value) {
     _parkRideWin.postMessage({type:'ir', s:sensor, v:value}, '*');
   if (_f1Win && !_f1Win.closed)
     _f1Win.postMessage({type:'ir', s:sensor, v:value}, '*');
+  if (_tapDuelWin && !_tapDuelWin.closed)
+    _tapDuelWin.postMessage({type:'ir', s:sensor, v:value}, '*');
 }
-function openExplorerGame() {
-  _explorerWin = window.open('games/explorer_run.html', 'explorer_run',
-    'width=1024,height=660,resizable=yes,scrollbars=no');
-  if (_explorerWin) _explorerWin.focus();
-}
+function openExplorerGame()  { _explorerWin   = window.open('games/explorer_run.html',        '_blank'); if (_explorerWin)   _explorerWin.focus(); }
 let _rotiWin = null;
-function openRotiGame() {
-  _rotiWin = window.open('games/roti_maker.html', 'roti_maker',
-    'width=900,height=620,resizable=yes,scrollbars=no');
-  if (_rotiWin) _rotiWin.focus();
-}
+function openRotiGame()      { _rotiWin        = window.open('games/roti_maker.html',           '_blank'); if (_rotiWin)        _rotiWin.focus(); }
 let _roti2Win = null;
-function openRoti2Game() {
-  _roti2Win = window.open('games/roti_maker2.html', 'roti_maker2',
-    'width=1024,height=660,resizable=yes,scrollbars=no');
-  if (_roti2Win) _roti2Win.focus();
-}
+function openRoti2Game()     { _roti2Win       = window.open('games/roti_maker2.html',          '_blank'); if (_roti2Win)       _roti2Win.focus(); }
 let _f1Win = null;
-function openF1RaceGame() {
-  _f1Win = window.open('games/f1_race.html', 'f1_race',
-    'width=1024,height=660,resizable=yes,scrollbars=no');
-  if (_f1Win) _f1Win.focus();
-}
+function openF1RaceGame()    { _f1Win          = window.open('games/f1_race.html',              '_blank'); if (_f1Win)          _f1Win.focus(); }
 let _parkRideWin = null;
-function openParkRideGame() {
-  _parkRideWin = window.open('games/park_ride/index.html', 'park_ride',
-    'width=1024,height=660,resizable=yes,scrollbars=no');
-  if (_parkRideWin) _parkRideWin.focus();
-}
+function openParkRideGame()  { _parkRideWin    = window.open('games/park_ride/index.html',      '_blank'); if (_parkRideWin)    _parkRideWin.focus(); }
 let _sargamWin = null;
-function openSargamGame() {
-  _sargamWin = window.open('games/sargam.html', 'sargam',
-    'width=1100,height=680,resizable=yes,scrollbars=no');
-  if (_sargamWin) _sargamWin.focus();
-}
+function openSargamGame()    { _sargamWin      = window.open('games/sargam.html',               '_blank'); if (_sargamWin)      _sargamWin.focus(); }
 let _airLiftWin = null;
-function openAirLiftGame() {
-  _airLiftWin = window.open('games/air_lift.html', 'air_lift',
-    'width=1000,height=680,resizable=yes,scrollbars=no');
-  if (_airLiftWin) _airLiftWin.focus();
-}
+function openAirLiftGame()   { _airLiftWin     = window.open('games/air_lift.html',             '_blank'); if (_airLiftWin)     _airLiftWin.focus(); }
 let _danceWin = null;
-function openDanceGame() {
-  _danceWin = window.open('games/dance_dance.html', 'dance_dance',
-    'width=960,height=660,resizable=yes,scrollbars=no');
-  if (_danceWin) _danceWin.focus();
-}
+function openDanceGame()     { _danceWin       = window.open('games/dance_dance.html',          '_blank'); if (_danceWin)       _danceWin.focus(); }
 let _balloonWin = null;
-function openBalloonGame() {
-  _balloonWin = window.open('games/balloon_blow.html', 'balloon_blow',
-    'width=960,height=660,resizable=yes,scrollbars=no');
-  if (_balloonWin) _balloonWin.focus();
-}
+function openBalloonGame()   { _balloonWin     = window.open('games/balloon_blow.html',         '_blank'); if (_balloonWin)     _balloonWin.focus(); }
 let _ballRailWin = null;
-function openBallRailGame() {
-  _ballRailWin = window.open('games/ball_rail.html', 'ball_rail',
-    'width=960,height=660,resizable=yes,scrollbars=no');
-  if (_ballRailWin) _ballRailWin.focus();
-}
+function openBallRailGame()  { _ballRailWin    = window.open('games/ball_rail.html',            '_blank'); if (_ballRailWin)    _ballRailWin.focus(); }
 let _turboBusWin = null;
-function openTurboBusGame() {
-  _turboBusWin = window.open('games/turbo_bus.html', 'turbo_bus',
-    'width=1024,height=660,resizable=yes,scrollbars=no');
-  if (_turboBusWin) _turboBusWin.focus();
-}
+function openTurboBusGame()  { _turboBusWin    = window.open('games/turbo_bus.html',            '_blank'); if (_turboBusWin)    _turboBusWin.focus(); }
 let _zapItWin = null;
-function openZapItGame() {
-  _zapItWin = window.open('games/zap_it.html', 'zap_it',
-    'width=960,height=660,resizable=yes,scrollbars=no');
-  if (_zapItWin) _zapItWin.focus();
-}
+function openZapItGame()     { _zapItWin       = window.open('games/zap_it.html',               '_blank'); if (_zapItWin)       _zapItWin.focus(); }
 let _skyVoyageWin = null;
-function openSkyVoyageGame() {
-  _skyVoyageWin = window.open('games/sky_voyage.html', 'sky_voyage',
-    'width=1024,height=660,resizable=yes,scrollbars=no');
-  if (_skyVoyageWin) _skyVoyageWin.focus();
-}
+function openSkyVoyageGame() { _skyVoyageWin   = window.open('games/sky_voyage.html',           '_blank'); if (_skyVoyageWin)   _skyVoyageWin.focus(); }
 let _breathBeatsWin = null;
-function openBreathBeatsGame() {
-  _breathBeatsWin = window.open('games/breath_beats.html', 'breath_beats',
-    'width=1024,height=660,resizable=yes,scrollbars=no');
-  if (_breathBeatsWin) _breathBeatsWin.focus();
-}
+function openBreathBeatsGame(){ _breathBeatsWin= window.open('games/breath_beats.html',         '_blank'); if (_breathBeatsWin) _breathBeatsWin.focus(); }
 let _letterCatchWin = null;
-function openLetterCatchGame() {
-  _letterCatchWin = window.open('games/edu_catcher.html#letters', 'edu_letters',
-    'width=1024,height=660,resizable=yes,scrollbars=no');
-  if (_letterCatchWin) _letterCatchWin.focus();
-}
+function openLetterCatchGame(){ _letterCatchWin= window.open('games/edu_catcher.html#letters',  '_blank'); if (_letterCatchWin) _letterCatchWin.focus(); }
 let _colorLearnWin = null;
-function openColorLearnGame() {
-  _colorLearnWin = window.open('games/edu_catcher.html#colors_learn', 'edu_color_learn',
-    'width=1024,height=660,resizable=yes,scrollbars=no');
-  if (_colorLearnWin) _colorLearnWin.focus();
-}
+function openColorLearnGame(){ _colorLearnWin  = window.open('games/edu_catcher.html#colors_learn','_blank'); if (_colorLearnWin)  _colorLearnWin.focus(); }
 let _colorCatchWin = null;
-function openColorCatchGame() {
-  _colorCatchWin = window.open('games/edu_catcher.html#colors', 'edu_colors',
-    'width=1024,height=660,resizable=yes,scrollbars=no');
-  if (_colorCatchWin) _colorCatchWin.focus();
-}
+function openColorCatchGame(){ _colorCatchWin  = window.open('games/edu_catcher.html#colors',   '_blank'); if (_colorCatchWin)  _colorCatchWin.focus(); }
 let _numberCatchWin = null;
-function openNumberCatchGame() {
-  _numberCatchWin = window.open('games/edu_catcher.html#numbers', 'edu_numbers',
-    'width=1024,height=660,resizable=yes,scrollbars=no');
-  if (_numberCatchWin) _numberCatchWin.focus();
-}
+function openNumberCatchGame(){ _numberCatchWin= window.open('games/edu_catcher.html#numbers',  '_blank'); if (_numberCatchWin) _numberCatchWin.focus(); }
+let _tapDuelWin = null;
+function openTapDuelGame()    { _tapDuelWin    = window.open('games/tap_duel.html',              '_blank'); if (_tapDuelWin)     _tapDuelWin.focus(); }
 
 // ── Pressure sensor relay (HX710B → game windows) ────────────────────────────
 function handlePressure(raw, delta, pct) {
@@ -852,6 +789,7 @@ function handlePressure(raw, delta, pct) {
   if (_colorLearnWin  && !_colorLearnWin.closed)   _colorLearnWin.postMessage(msg,  '*');
   if (_colorCatchWin  && !_colorCatchWin.closed)   _colorCatchWin.postMessage(msg,  '*');
   if (_numberCatchWin && !_numberCatchWin.closed)  _numberCatchWin.postMessage(msg, '*');
+  if (_tapDuelWin     && !_tapDuelWin.closed)      _tapDuelWin.postMessage(msg,     '*');
   if (_parkRideWin    && !_parkRideWin.closed)      _parkRideWin.postMessage(msg,    '*');
   if (_f1Win          && !_f1Win.closed)            _f1Win.postMessage(msg,          '*');
   if (_sargamWin      && !_sargamWin.closed)        _sargamWin.postMessage(msg,      '*');
